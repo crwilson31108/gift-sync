@@ -1,0 +1,482 @@
+<template>
+  <v-app class="min-h-screen">
+    <!-- Main Sidebar -->
+    <v-navigation-drawer
+      v-if="!$vuetify.display.mobile"
+      v-model="showSidebar"
+      :rail="sidebarMini"
+      permanent
+      class="bg-light-surface dark:bg-dark-surface border-r border-accent/10"
+      :rail-width="80"
+      width="280"
+    >
+      <!-- Logo Section -->
+      <div class="px-4 py-3">
+        <div :class="sidebarMini ? 'flex flex-col items-center' : 'flex items-center justify-between'">
+          <template v-if="sidebarMini">
+            <img 
+              src="@/assets/logo/logo-mini.png" 
+              alt="Gift Sync"
+              class="w-12 h-12 object-contain object-center mb-2"
+              @error="handleImageError"
+            />
+            <v-btn
+              icon
+              variant="text"
+              size="small"
+              class="text-light-subtle dark:text-dark-subtle mt-2"
+              @click.stop="sidebarMini = !sidebarMini"
+            >
+              <v-icon>mdi-chevron-right</v-icon>
+            </v-btn>
+          </template>
+          <template v-else>
+            <img 
+              src="@/assets/logo/logo.png" 
+              alt="Gift Sync Logo"
+              class="w-40 h-auto object-contain object-center"
+              @error="handleImageError"
+            />
+            <v-btn
+              icon
+              variant="text"
+              size="small"
+              class="text-light-subtle dark:text-dark-subtle"
+              @click.stop="sidebarMini = !sidebarMini"
+            >
+              <v-icon>mdi-chevron-left</v-icon>
+            </v-btn>
+          </template>
+        </div>
+      </div>
+
+      <v-divider class="border-accent/10 my-2" />
+
+      <!-- Navigation Links -->
+      <v-list class="px-2">
+        <v-list-item
+          v-for="item in menuItems"
+          :key="item.path"
+          :to="item.path"
+          :value="item.path"
+          :exact="item.path === '/'"
+          class="mb-1 rounded-lg text-light-text dark:text-dark-text hover:bg-light-surface/80 dark:hover:bg-dark-surface/80"
+          active-class="bg-primary/10 text-primary dark:text-primary"
+        >
+          <template v-slot:prepend>
+            <v-icon 
+              :icon="item.icon" 
+              class="text-light-subtle dark:text-dark-subtle"
+              :class="{ 'text-primary dark:text-primary': $route.path === item.path }"
+            />
+          </template>
+          <v-list-item-title>{{ item.title }}</v-list-item-title>
+        </v-list-item>
+      </v-list>
+
+      <!-- Bottom Actions -->
+      <template v-slot:append>
+        <div class="px-4 py-3">
+          <v-divider class="border-accent/10 mb-3" />
+          <div class="flex items-center space-x-3">
+            <v-avatar
+              :size="sidebarMini ? 40 : 45"
+              color="primary"
+            >
+              <v-img
+                v-if="store.currentUser?.avatar"
+                :src="store.currentUser.avatar"
+                alt="User Avatar"
+              />
+              <span v-else class="text-white text-lg">
+                {{ store.currentUser?.name?.charAt(0).toUpperCase() ?? 'U' }}
+              </span>
+            </v-avatar>
+            <div v-if="!sidebarMini" class="flex-1 min-w-0">
+              <p class="text-sm font-medium text-light-text dark:text-dark-text truncate">
+                {{ store.currentUser?.name ?? 'User' }}
+              </p>
+              <p class="text-xs text-light-subtle dark:text-dark-subtle truncate">
+                {{ store.currentUser?.email ?? 'user@example.com' }}
+              </p>
+            </div>
+            <v-menu
+              location="top"
+              offset="10"
+            >
+              <template v-slot:activator="{ props }">
+                <v-btn
+                  icon="mdi-dots-vertical"
+                  variant="text"
+                  size="small"
+                  v-bind="props"
+                  class="text-light-subtle dark:text-dark-subtle"
+                />
+              </template>
+              <v-list width="200" class="py-2">
+                <v-list-item
+                  prepend-icon="mdi-account-outline"
+                  title="Profile"
+                  to="/profile"
+                />
+                <v-list-item
+                  prepend-icon="mdi-cog-outline"
+                  title="Settings"
+                  to="/settings"
+                />
+                <v-divider class="my-2" />
+                <v-list-item
+                  prepend-icon="mdi-logout"
+                  title="Sign Out"
+                  @click="store.logout"
+                />
+              </v-list>
+            </v-menu>
+          </div>
+        </div>
+      </template>
+    </v-navigation-drawer>
+
+    <!-- Top App Bar -->
+    <v-app-bar
+      v-if="!$vuetify.display.mobile"
+      class="bg-light-surface dark:bg-dark-surface border-b border-accent/10"
+      flat
+    >
+      <v-container class="max-w-7xl mx-auto px-4 py-2">
+        <div class="flex items-center justify-between w-full">
+          <!-- Breadcrumbs -->
+          <v-breadcrumbs
+            :items="breadcrumbs"
+            class="px-0"
+          >
+            <template v-slot:divider>
+              <v-icon icon="mdi-chevron-right" size="small"></v-icon>
+            </template>
+            <template v-slot:title="{ item }">
+              <span class="text-light-text dark:text-dark-text">{{ item.title }}</span>
+            </template>
+          </v-breadcrumbs>
+          
+          <!-- Right Actions -->
+          <div class="flex items-center space-x-4">
+            <!-- Notifications -->
+            <v-menu location="bottom end">
+              <template v-slot:activator="{ props }">
+                <v-btn
+                  icon
+                  v-bind="props"
+                  class="text-light-subtle dark:text-dark-subtle"
+                >
+                  <v-badge
+                    :content="unreadNotificationsCount"
+                    :model-value="unreadNotificationsCount > 0"
+                    color="primary"
+                  >
+                    <v-icon>mdi-bell</v-icon>
+                  </v-badge>
+                </v-btn>
+              </template>
+              <v-list width="320" class="py-2">
+                <v-list-subheader>Notifications</v-list-subheader>
+                <template v-if="recentNotifications.length">
+                  <v-list-item
+                    v-for="notification in recentNotifications"
+                    :key="notification.id"
+                    :to="getNotificationLink(notification)"
+                    :class="{ 'bg-primary/5': !notification.read }"
+                  >
+                    <template v-slot:prepend>
+                      <v-avatar color="primary" size="32">
+                        <span class="text-xs">{{ getUserInitials(notification.userId) }}</span>
+                      </v-avatar>
+                    </template>
+                    <v-list-item-title class="text-sm">
+                      {{ getUserName(notification.userId) }}
+                      {{ getNotificationText(notification) }}
+                    </v-list-item-title>
+                    <v-list-item-subtitle class="text-xs">
+                      {{ formatDate(notification.createdAt) }}
+                    </v-list-item-subtitle>
+                  </v-list-item>
+                  <v-divider class="my-2" />
+                </template>
+                <v-list-item
+                  to="/notifications"
+                  prepend-icon="mdi-bell-outline"
+                >
+                  View All Notifications
+                </v-list-item>
+              </v-list>
+            </v-menu>
+            
+            <!-- Theme Toggle -->
+            <v-btn
+              icon
+              @click="store.toggleTheme"
+              class="text-light-subtle dark:text-dark-subtle"
+            >
+              <v-icon>{{ store.isDarkTheme ? 'mdi-weather-sunny' : 'mdi-weather-night' }}</v-icon>
+            </v-btn>
+          </div>
+        </div>
+      </v-container>
+    </v-app-bar>
+
+    <!-- Mobile Top Bar -->
+    <v-app-bar
+      v-if="$vuetify.display.mobile"
+      class="bg-light-surface dark:bg-dark-surface border-b border-accent/10"
+      flat
+    >
+      <v-app-bar-title class="text-primary font-bold">Gift Sync</v-app-bar-title>
+      <div class="flex items-center space-x-2">
+        <!-- Notifications -->
+        <v-btn
+          icon
+          class="text-light-subtle dark:text-dark-subtle"
+        >
+          <v-badge
+            :content="3"
+            color="primary"
+            offset-x="3"
+            offset-y="3"
+          >
+            <v-icon>mdi-bell-outline</v-icon>
+          </v-badge>
+        </v-btn>
+        <!-- Theme Toggle -->
+        <v-btn
+          icon
+          variant="text"
+          @click="store.toggleTheme"
+          class="text-light-subtle dark:text-dark-subtle"
+        >
+          <v-icon>{{ store.isDarkTheme ? 'mdi-weather-sunny' : 'mdi-weather-night' }}</v-icon>
+        </v-btn>
+      </div>
+    </v-app-bar>
+
+    <!-- Mobile Bottom Navigation -->
+    <v-bottom-navigation
+      v-if="$vuetify.display.mobile"
+      v-model="currentRoute"
+      class="bg-light-surface dark:bg-dark-surface border-t border-accent/10"
+      grow
+    >
+      <v-btn
+        v-for="item in menuItems.slice(0, 5)"
+        :key="item.path"
+        :to="item.path"
+        :value="item.path"
+        class="text-light-subtle dark:text-dark-subtle"
+        :class="{ 'text-primary dark:text-primary': $route.path === item.path }"
+      >
+        <v-icon :icon="item.icon" />
+        <span class="text-xs mt-1">{{ item.title }}</span>
+      </v-btn>
+      
+      <!-- More Menu for Additional Items -->
+      <v-menu
+        v-if="menuItems.length > 5"
+        location="top"
+        offset="10"
+      >
+        <template v-slot:activator="{ props }">
+          <v-btn
+            v-bind="props"
+            class="text-light-subtle dark:text-dark-subtle"
+          >
+            <v-icon icon="mdi-dots-horizontal" />
+            <span class="text-xs mt-1">More</span>
+          </v-btn>
+        </template>
+        <v-list>
+          <v-list-item
+            v-for="item in menuItems.slice(5)"
+            :key="item.path"
+            :to="item.path"
+            :value="item.path"
+          >
+            <template v-slot:prepend>
+              <v-icon :icon="item.icon" />
+            </template>
+            <v-list-item-title>{{ item.title }}</v-list-item-title>
+          </v-list-item>
+        </v-list>
+      </v-menu>
+    </v-bottom-navigation>
+
+    <!-- Main Content -->
+    <v-main class="bg-light-bg dark:bg-dark-bg">
+      <div class="max-w-7xl mx-auto px-4 py-6 bg-light-bg dark:bg-dark-bg min-h-screen pb-16 md:pb-6">
+        <router-view v-slot="{ Component }">
+          <transition 
+            name="fade"
+            mode="out-in"
+          >
+            <component :is="Component" class="w-full" />
+          </transition>
+        </router-view>
+      </div>
+    </v-main>
+  </v-app>
+</template>
+
+<script setup lang="ts">
+import { ref, onMounted, computed, watch } from 'vue'
+import { useAppStore } from '@/stores/useAppStore'
+import { useRoute } from 'vue-router'
+import { format } from 'date-fns'
+import type { Notification } from '@/stores/useAppStore'
+
+const store = useAppStore()
+const route = useRoute()
+const currentRoute = ref(route.path)
+
+const showSidebar = ref(true)
+const sidebarMini = ref(false)
+
+const menuItems = [
+  { title: 'Home', path: '/', icon: 'mdi-home' },
+  { title: 'Families', path: '/families', icon: 'mdi-account-group' },
+  { title: 'Members', path: '/members', icon: 'mdi-account-multiple' },
+  { title: 'Wishlists', path: '/wishlists', icon: 'mdi-gift' }
+]
+
+const handleImageError = (e: Event) => {
+  const img = e.target as HTMLImageElement
+  img.style.display = 'none'
+  console.error('Failed to load logo')
+}
+
+// Compute breadcrumbs based on current route
+const breadcrumbs = computed(() => {
+  const pathParts = route.path.split('/').filter(Boolean)
+  const items = [
+    {
+      title: 'Home',
+      disabled: false,
+      to: '/',
+    }
+  ]
+  
+  let path = ''
+  pathParts.forEach(part => {
+    path += `/${part}`
+    items.push({
+      title: part.charAt(0).toUpperCase() + part.slice(1),
+      disabled: path === route.path,
+      to: path,
+    })
+  })
+  
+  return items
+})
+
+const unreadNotificationsCount = computed(() => 
+  store.notifications.filter(n => !n.read).length
+)
+
+const recentNotifications = computed(() => 
+  [...store.notifications]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 5)
+)
+
+const getUserName = (userId: number) => {
+  const user = store.users.find(u => u.id === userId)
+  return user?.name || 'Unknown'
+}
+
+const getUserInitials = (userId: number) => {
+  return getUserName(userId)
+    .split(' ')
+    .map(n => n[0])
+    .join('')
+    .toUpperCase()
+}
+
+const formatDate = (date: Date) => {
+  return format(new Date(date), 'MMM d, yyyy')
+}
+
+const getNotificationText = (notification: Notification) => {
+  switch (notification.type) {
+    case 'new_item':
+      return 'added a new item to their wishlist'
+    case 'purchased':
+      return 'purchased an item from Meriah\'s wishlist'
+    case 'wishlist_created':
+      return 'created a new wishlist'
+    default:
+      return ''
+  }
+}
+
+const getNotificationLink = (notification: Notification) => {
+  switch (notification.type) {
+    case 'new_item':
+    case 'wishlist_created':
+      return `/wishlists/${notification.targetId}`
+    case 'purchased':
+      const wishlist = store.wishlists.find(w => 
+        w.items.some(i => i.id === notification.targetId)
+      )
+      return `/wishlists/${wishlist?.id}`
+    default:
+      return '/'
+  }
+}
+
+onMounted(() => {
+  document.documentElement.classList.toggle('dark', store.isDarkTheme)
+})
+</script>
+
+<style>
+/* Ensure content doesn't overflow during transitions */
+.v-main {
+  @apply overflow-x-hidden;
+}
+
+/* Simple fade transition */
+.fade-enter-active,
+.fade-leave-active {
+  @apply transition-opacity duration-150 ease-linear;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  @apply opacity-0;
+}
+
+/* Prevent interaction during transition */
+.fade-enter-active *,
+.fade-leave-active * {
+  pointer-events: none;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  @apply w-2;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-light-bg dark:bg-dark-bg;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-secondary/50 rounded-full hover:bg-secondary/70 transition-colors;
+}
+
+/* Optimize performance */
+* {
+  @apply subpixel-antialiased;
+}
+
+/* Improved transitions */
+.v-navigation-drawer {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+</style>

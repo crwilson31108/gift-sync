@@ -1,0 +1,96 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom CSS Variables */
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: light dark;
+  color: theme('colors.light.text');
+  background-color: theme('colors.light.bg');
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Base styles */
+body {
+  @apply bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text;
+}
+
+h1 {
+  font-size: 3.2em;
+  line-height: 1.1;
+}
+
+a {
+  font-weight: 500;
+  color: theme('colors.accent');
+  text-decoration: inherit;
+}
+a:hover {
+  color: theme('colors.primary');
+}
+
+button {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: theme('colors.primary');
+  cursor: pointer;
+  transition: border-color 0.25s;
+}
+button:hover {
+  border-color: theme('colors.accent');
+}
+button:focus,
+button:focus-visible {
+  outline: 4px auto -webkit-focus-ring-color;
+}
+
+/* Custom utility classes */
+.page-container {
+  @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8;
+}
+
+.card-hover {
+  @apply transition-all duration-300 hover:shadow-lg hover:-translate-y-1;
+}
+
+.card {
+  padding: 2em;
+}
+
+/* Dark theme */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color: theme('colors.dark.text');
+    background-color: theme('colors.dark.bg');
+  }
+  a:hover {
+    color: theme('colors.accent');
+  }
+  button {
+    background-color: theme('colors.primary');
+  }
+}
+
+/* Ensure html element transitions smoothly */
+html {
+  @apply transition-colors duration-300;
+}
+
+/* Optional: Add transitions for specific properties */
+* {
+  @apply transition-colors duration-300;
+} 
