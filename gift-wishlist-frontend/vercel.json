@@ -2,7 +2,6 @@
   "framework": "vite",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "root": "gift-wishlist-frontend",
   "routes": [
     {
       "src": "/assets/(.*)",
