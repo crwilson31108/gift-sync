@@ -5,6 +5,7 @@ import './assets/main.css'
 
 // Pinia store
 import { createPinia } from 'pinia'
+import piniaPluginPersistedstate from 'pinia-plugin-persistedstate'
 
 // Vue Router
 import router from './router'
@@ -19,8 +20,10 @@ if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
 
 const app = createApp(App)
 
-// Install Pinia
-app.use(createPinia())
+// Initialize Pinia with persistence
+const pinia = createPinia()
+pinia.use(piniaPluginPersistedstate)
+app.use(pinia)
 
 // Install Vue Router
 app.use(router)

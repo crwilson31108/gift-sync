@@ -1,17 +1,12 @@
 <!-- src/pages/WishlistList.vue -->
 <template>
-  <div class="py-8">
-    <!-- Header -->
-    <div class="flex items-center justify-between mb-8">
-      <div>
-        <h2 class="text-3xl font-bold text-primary mb-2">Wishlists</h2>
-        <p class="text-light-subtle dark:text-dark-subtle">
-          Manage and view wishlists
-        </p>
-      </div>
+  <div>
+    <div class="flex justify-between items-center mb-6">
+      <h1 class="text-2xl font-bold text-light-text dark:text-dark-text">
+        Wishlists
+      </h1>
       <v-btn
         color="primary"
-        class="px-6"
         prepend-icon="mdi-plus"
         @click="openCreateDialog"
       >
@@ -19,215 +14,294 @@
       </v-btn>
     </div>
 
-    <!-- Tabs -->
-    <v-tabs v-model="activeTab" class="mb-6">
-      <v-tab value="my">
-        <v-icon icon="mdi-account" class="mr-2" />
-        My Wishlists
-      </v-tab>
-      <v-tab value="family">
-        <v-icon icon="mdi-account-group" class="mr-2" />
-        Family Wishlists
-      </v-tab>
-    </v-tabs>
+    <!-- Loading State -->
+    <div v-if="loading" class="flex justify-center py-8">
+      <v-progress-circular indeterminate color="primary" />
+    </div>
 
-    <v-window v-model="activeTab">
-      <!-- My Wishlists -->
-      <v-window-item value="my">
-        <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          <WishlistCard
-            v-for="wishlist in store.myWishlists"
-            :key="wishlist.id"
-            :wishlist="wishlist"
-            :editable="true"
-            @edit="editWishlist"
-            @delete="confirmDelete"
-          />
-          
-          <!-- Add Wishlist Card -->
-          <v-card
-            class="border-2 border-dashed border-accent/30 hover:border-accent/50 transition-all duration-200 cursor-pointer flex items-center justify-center"
-            elevation="0"
-            height="100%"
-            @click="openCreateDialog"
+    <!-- Error State -->
+    <v-alert
+      v-else-if="error"
+      type="error"
+      class="mb-4"
+    >
+      {{ error }}
+    </v-alert>
+
+    <!-- Empty State -->
+    <div 
+      v-else-if="!wishlists.length"
+      class="text-center py-12"
+    >
+      <v-icon
+        icon="mdi-gift-outline"
+        size="64"
+        class="text-light-subtle dark:text-dark-subtle mb-4"
+      />
+      <h3 class="text-xl font-medium text-light-text dark:text-dark-text mb-2">
+        No Wishlists Yet
+      </h3>
+      <p class="text-light-subtle dark:text-dark-subtle mb-4">
+        Create your first wishlist to start adding items
+      </p>
+      <v-btn
+        color="primary"
+        prepend-icon="mdi-plus"
+        @click="openCreateDialog"
+      >
+        Create Wishlist
+      </v-btn>
+    </div>
+
+    <!-- Wishlists Grid -->
+    <div 
+      v-else 
+      class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+    >
+      <WishlistCard
+        v-for="wishlist in wishlists"
+        :key="wishlist.id"
+        :wishlist="wishlist"
+        @edit="openEditDialog"
+        @delete="confirmDelete"
+      >
+        <template #actions>
+          <v-btn
+            variant="text"
+            color="primary"
+            :to="`/wishlists/${wishlist.id}`"
           >
-            <div class="text-center p-6">
-              <v-icon
-                icon="mdi-plus-circle"
-                size="large"
-                class="text-accent mb-2"
-              />
-              <p class="text-light-subtle dark:text-dark-subtle font-medium">
-                Create New Wishlist
-              </p>
-            </div>
-          </v-card>
-        </div>
-      </v-window-item>
-
-      <!-- Family Wishlists -->
-      <v-window-item value="family">
-        <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          <WishlistCard
-            v-for="wishlist in store.familyWishlists"
-            :key="wishlist.id"
-            :wishlist="wishlist"
-            :editable="false"
-          />
-        </div>
-      </v-window-item>
-    </v-window>
+            View
+          </v-btn>
+          <!-- Other actions -->
+        </template>
+      </WishlistCard>
+    </div>
 
     <!-- Create/Edit Dialog -->
-    <v-dialog v-model="dialogVisible" max-width="500px">
-      <v-card class="p-6">
-        <h3 class="text-xl font-semibold mb-4">
-          {{ editingWishlist ? 'Edit Wishlist' : 'Create New Wishlist' }}
-        </h3>
-        <v-form @submit.prevent="saveWishlist">
-          <v-select
-            v-model="wishlistForm.familyId"
-            :items="userFamilies"
-            item-title="name"
-            item-value="id"
-            label="Select Family"
-            required
-          />
-          <v-text-field
-            v-model="wishlistForm.name"
-            label="Wishlist Name"
-            required
-            :rules="[v => !!v || 'Name is required']"
-          />
-          <div class="flex justify-end gap-3 mt-6">
-            <v-btn
-              variant="outlined"
-              @click="dialogVisible = false"
-            >
-              Cancel
-            </v-btn>
-            <v-btn
-              color="primary"
-              type="submit"
-              :loading="saving"
-            >
-              {{ editingWishlist ? 'Save Changes' : 'Create Wishlist' }}
-            </v-btn>
-          </div>
-        </v-form>
+    <v-dialog
+      v-model="dialog.show"
+      max-width="500"
+    >
+      <v-card>
+        <v-card-title>
+          {{ dialog.isEdit ? 'Edit Wishlist' : 'Create Wishlist' }}
+        </v-card-title>
+
+        <v-card-text>
+          <v-form @submit.prevent="handleSubmit">
+            <v-text-field
+              v-model="form.name"
+              label="Wishlist Name"
+              required
+              :error-messages="errors.name"
+            />
+            
+            <v-select
+              v-model="form.family"
+              :items="families"
+              label="Select Family"
+              item-title="name"
+              item-value="id"
+              required
+              :error-messages="errors.family"
+            />
+          </v-form>
+        </v-card-text>
+
+        <v-card-actions>
+          <v-spacer />
+          <v-btn
+            variant="text"
+            @click="dialog.show = false"
+          >
+            Cancel
+          </v-btn>
+          <v-btn
+            color="primary"
+            :loading="loading"
+            @click="handleSubmit"
+          >
+            {{ dialog.isEdit ? 'Save Changes' : 'Create' }}
+          </v-btn>
+        </v-card-actions>
       </v-card>
     </v-dialog>
 
-    <!-- Confirm Delete Dialog -->
-    <v-dialog v-model="deleteDialogVisible" max-width="400px">
-      <v-card class="p-6">
-        <h3 class="text-xl font-semibold mb-4">Confirm Delete</h3>
-        <p class="mb-6">Are you sure you want to delete this wishlist? This action cannot be undone.</p>
-        <div class="flex justify-end gap-3">
+    <!-- Delete Confirmation -->
+    <v-dialog
+      v-model="deleteDialog.show"
+      max-width="400"
+    >
+      <v-card>
+        <v-card-title class="text-error">
+          Delete Wishlist
+        </v-card-title>
+        <v-card-text>
+          Are you sure you want to delete "{{ deleteDialog.wishlist?.name }}"? This action cannot be undone.
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
           <v-btn
-            variant="outlined"
-            @click="deleteDialogVisible = false"
+            variant="text"
+            @click="deleteDialog.show = false"
           >
             Cancel
           </v-btn>
           <v-btn
             color="error"
-            @click="deleteWishlist"
-            :loading="deleting"
+            :loading="loading"
+            @click="handleDelete"
           >
             Delete
           </v-btn>
-        </div>
+        </v-card-actions>
       </v-card>
     </v-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useAppStore } from '@/stores/useAppStore'
-import { storeToRefs } from 'pinia'
-import type { Wishlist } from '@/stores/useAppStore'
+import { ref, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
+import { wishlistsService, type WishList } from '@/services/wishlists'
+import { familiesService, type Family } from '@/services/families'
 import WishlistCard from '@/components/WishlistCard.vue'
 
-const store = useAppStore()
-const { families } = storeToRefs(store)
+const route = useRoute()
+const wishlists = ref<WishList[]>([])
+const families = ref<Family[]>([])
+const loading = ref(false)
+const error = ref('')
 
-const activeTab = ref('my')
-const dialogVisible = ref(false)
-const deleteDialogVisible = ref(false)
-const saving = ref(false)
-const deleting = ref(false)
-
-const editingWishlist = ref<Wishlist | null>(null)
-const selectedWishlist = ref<Wishlist | null>(null)
-
-const wishlistForm = ref({
-  familyId: null as number | null,
-  name: ''
+const dialog = ref({
+  show: false,
+  isEdit: false,
+  wishlist: null as WishList | null
 })
 
-// Computed
-const userFamilies = computed(() => 
-  families.value.filter(f => f.members.includes(store.currentUserId))
-)
+const form = ref({
+  name: '',
+  family: null as number | null
+})
 
-// Methods
-const openCreateDialog = () => {
-  editingWishlist.value = null
-  wishlistForm.value = {
-    familyId: null,
-    name: ''
-  }
-  dialogVisible.value = true
-}
+const errors = ref({
+  name: '',
+  family: ''
+})
 
-const editWishlist = (wishlist: Wishlist) => {
-  editingWishlist.value = wishlist
-  wishlistForm.value = {
-    familyId: wishlist.familyId,
-    name: wishlist.name
-  }
-  dialogVisible.value = true
-}
+const deleteDialog = ref({
+  show: false,
+  wishlist: null as WishList | null
+})
 
-const saveWishlist = async () => {
-  if (!wishlistForm.value.familyId) return
-  
-  saving.value = true
+// Fetch initial data
+onMounted(async () => {
   try {
-    if (editingWishlist.value) {
-      await store.updateWishlist(editingWishlist.value.id, {
-        name: wishlistForm.value.name,
-        familyId: wishlistForm.value.familyId
-      })
+    loading.value = true
+    const [wishlistsData, familiesData] = await Promise.all([
+      wishlistsService.getWishlists({
+        family: Number(route.query.family) || undefined,
+        owner: Number(route.query.owner) || undefined
+      }),
+      familiesService.getFamilies()
+    ])
+    wishlists.value = wishlistsData
+    families.value = familiesData
+  } catch (err) {
+    error.value = 'Failed to load wishlists'
+    console.error(err)
+  } finally {
+    loading.value = false
+  }
+})
+
+function openCreateDialog() {
+  dialog.value = {
+    show: true,
+    isEdit: false,
+    wishlist: null
+  }
+  form.value = {
+    name: '',
+    family: null
+  }
+  errors.value = {
+    name: '',
+    family: ''
+  }
+}
+
+function openEditDialog(wishlist: WishList) {
+  dialog.value = {
+    show: true,
+    isEdit: true,
+    wishlist
+  }
+  form.value = {
+    name: wishlist.name,
+    family: wishlist.family
+  }
+  errors.value = {
+    name: '',
+    family: ''
+  }
+}
+
+function confirmDelete(wishlist: WishList) {
+  deleteDialog.value = {
+    show: true,
+    wishlist
+  }
+}
+
+async function handleSubmit() {
+  if (!form.value.family) {
+    errors.value.family = 'Please select a family'
+    return
+  }
+
+  try {
+    loading.value = true
+    errors.value = { name: '', family: '' }
+
+    if (dialog.value.isEdit && dialog.value.wishlist) {
+      await wishlistsService.updateWishlist(dialog.value.wishlist.id, form.value)
     } else {
-      await store.createWishlist({
-        name: wishlistForm.value.name,
-        familyId: wishlistForm.value.familyId,
-        ownerId: store.currentUserId
-      })
+      await wishlistsService.createWishlist(form.value as Required<typeof form.value>)
     }
-    dialogVisible.value = false
+
+    // Refresh wishlists list
+    wishlists.value = await wishlistsService.getWishlists({
+      family: Number(route.query.family) || undefined,
+      owner: Number(route.query.owner) || undefined
+    })
+    dialog.value.show = false
+  } catch (err: any) {
+    if (err.response?.data) {
+      errors.value.name = err.response.data.name?.[0] || ''
+      errors.value.family = err.response.data.family?.[0] || ''
+    } else {
+      error.value = 'An error occurred'
+    }
   } finally {
-    saving.value = false
+    loading.value = false
   }
 }
 
-const confirmDelete = (wishlist: Wishlist) => {
-  selectedWishlist.value = wishlist
-  deleteDialogVisible.value = true
-}
+async function handleDelete() {
+  if (!deleteDialog.value.wishlist) return
 
-const deleteWishlist = async () => {
-  if (!selectedWishlist.value) return
-  
-  deleting.value = true
   try {
-    await store.deleteWishlist(selectedWishlist.value.id)
-    deleteDialogVisible.value = false
+    loading.value = true
+    await wishlistsService.deleteWishlist(deleteDialog.value.wishlist.id)
+    wishlists.value = wishlists.value.filter(w => w.id !== deleteDialog.value.wishlist?.id)
+    deleteDialog.value.show = false
+  } catch (err) {
+    error.value = 'Failed to delete wishlist'
+    console.error(err)
   } finally {
-    deleting.value = false
+    loading.value = false
   }
 }
 </script>
