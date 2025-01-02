@@ -1,792 +1,643 @@
 <!-- src/pages/WishlistDetail.vue -->
 <template>
-  <div class="py-8">
+  <div>
     <!-- Header -->
-    <div class="flex items-center justify-between mb-8">
-      <div class="flex items-center space-x-4">
-        <v-avatar color="primary" size="56">
-          <span class="text-lg">{{ getOwnerInitials }}</span>
-        </v-avatar>
-        <div>
-          <h2 class="text-3xl font-bold text-primary mb-1">{{ wishlist?.name }}</h2>
-          <p class="text-light-subtle dark:text-dark-subtle flex items-center">
-            <v-icon icon="mdi-account" size="small" class="mr-1" />
-            {{ getOwnerName }}
-            <span class="mx-2">•</span>
-            <v-icon icon="mdi-account-group" size="small" class="mr-1" />
-            {{ getFamilyName }}
-          </p>
-        </div>
-      </div>
-      
-      <div class="flex items-center space-x-3">
-        <template v-if="isOwner">
-          <v-btn
-            color="primary"
-            prepend-icon="mdi-plus"
-            @click="openAddItemDialog"
-          >
-            Add Item
-          </v-btn>
-        </template>
-        <v-btn
-          icon
-          variant="text"
-          class="text-light-subtle dark:text-dark-subtle"
-          @click="$router.back()"
-        >
-          <v-icon>mdi-close</v-icon>
-        </v-btn>
-      </div>
-    </div>
-
-    <!-- Filter Bar -->
-    <div class="mb-6 p-4 bg-light-surface dark:bg-dark-surface rounded-lg border border-accent/10">
-      <!-- Filter Summary -->
-      <div v-if="filterStats.isFiltered" class="mb-4 flex items-center justify-between">
-        <p class="text-sm text-light-subtle dark:text-dark-subtle">
-          Showing {{ filterStats.filtered }} of {{ filterStats.total }} items
+    <div class="flex justify-between items-center mb-6">
+      <div>
+        <h1 class="text-2xl font-bold text-light-text dark:text-dark-text">
+          {{ wishlist?.name || 'Wishlist' }}
+        </h1>
+        <p class="text-sm text-light-subtle dark:text-dark-subtle mt-1">
+          Created by {{ wishlist?.owner.username }} on {{ wishlist?.created_at ? formatDate(wishlist.created_at) : '' }}
         </p>
-        <v-btn
-          size="small"
-          variant="text"
-          color="primary"
-          @click="clearFilters"
-        >
-          Clear Filters
-        </v-btn>
       </div>
-
-      <div class="flex flex-wrap gap-4">
-        <!-- Search -->
-        <v-text-field
-          v-model="filters.search"
-          label="Search items"
-          prepend-inner-icon="mdi-magnify"
-          variant="outlined"
-          density="comfortable"
-          hide-details
-          class="max-w-xs"
-        />
-        
-        <!-- Size Filter -->
-        <v-select
-          v-model="filters.size"
-          :items="['All', 'Small', 'Medium', 'Large']"
-          label="Size"
-          prepend-inner-icon="mdi-resize"
-          variant="outlined"
-          density="comfortable"
-          hide-details
-          class="max-w-[150px]"
-        />
-
-        <!-- Price Range -->
-        <v-range-slider
-          v-model="filters.priceRange"
-          :min="0"
-          :max="200"
-          :step="10"
-          label="Price Range"
-          prepend-inner-icon="mdi-currency-usd"
-          variant="outlined"
-          density="comfortable"
-          hide-details
-          class="max-w-xs px-3"
+      <div class="flex gap-2">
+        <v-btn
+          v-if="isOwner"
+          color="primary"
+          prepend-icon="mdi-plus"
+          @click="openCreateItemDialog"
         >
-          <template v-slot:prepend>
-            <span class="text-sm text-light-subtle dark:text-dark-subtle">
-              ${{ filters.priceRange[0] }}
-            </span>
-          </template>
-          <template v-slot:append>
-            <span class="text-sm text-light-subtle dark:text-dark-subtle">
-              ${{ filters.priceRange[1] }}
-            </span>
-          </template>
-        </v-range-slider>
-
-        <!-- Purchase Status -->
-        <v-select
-          v-model="filters.status"
-          :items="['All', 'Available', 'Purchased']"
-          label="Status"
-          prepend-inner-icon="mdi-gift-outline"
+          Add Item
+        </v-btn>
+        <v-btn
+          v-if="isOwner"
+          color="primary"
           variant="outlined"
-          density="comfortable"
-          hide-details
-          class="max-w-[150px]"
-        />
+          prepend-icon="mdi-pencil"
+          @click="openEditDialog"
+        >
+          Edit Wishlist
+        </v-btn>
       </div>
     </div>
 
-    <!-- Grid View -->
-    <TransitionGroup
-      name="masonry-item"
-      tag="div"
-      class="masonry-grid relative"
+    <!-- Loading State -->
+    <div v-if="loading" class="flex justify-center py-8">
+      <v-progress-circular indeterminate color="primary" />
+    </div>
+
+    <!-- Error State -->
+    <v-alert
+      v-else-if="error"
+      type="error"
+      class="mb-4"
     >
-      <vue-draggable
-        v-model="items"
-        :disabled="!isOwner"
-        item-key="id"
-        animation="300"
-        :delay="50"
-        ghost-class="ghost-item"
-        chosen-class="chosen-item"
-        drag-class="drag-item"
-        @end="handleDragEnd"
+      {{ error }}
+    </v-alert>
+
+    <!-- Empty State -->
+    <div 
+      v-else-if="!wishlist?.items.length"
+      class="text-center py-12"
+    >
+      <v-icon
+        icon="mdi-gift-outline"
+        size="64"
+        class="text-light-subtle dark:text-dark-subtle mb-4"
+      />
+      <h3 class="text-xl font-medium text-light-text dark:text-dark-text mb-2">
+        No Items Yet
+      </h3>
+      <p class="text-light-subtle dark:text-dark-subtle mb-4">
+        {{ isOwner ? 'Add your first item to your wishlist' : 'This wishlist is empty' }}
+      </p>
+      <v-btn
+        v-if="isOwner"
+        color="primary"
+        prepend-icon="mdi-plus"
+        @click="openCreateItemDialog"
       >
-      <template #item="{ element: item }">
-        <div class="masonry-item" :key="item.id">
-          <v-card
-            class="bg-light-surface dark:bg-dark-surface border border-accent/10 hover:border-accent/30 transition-all duration-200"
-            elevation="0"
+        Add Item
+      </v-btn>
+    </div>
+
+    <!-- Items Grid -->
+    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <v-card
+        v-for="item in wishlist?.items"
+        :key="item.id"
+        :class="[
+          'bg-light-surface dark:bg-dark-surface',
+          { 'opacity-50': item.is_purchased && !isOwner }
+        ]"
+      >
+        <v-img
+          v-if="item.image_url"
+          :src="item.image_url"
+          height="200"
+          cover
+          class="bg-light-subtle dark:bg-dark-subtle"
+        />
+
+        <v-card-title class="flex justify-between items-center">
+          <span>{{ item.title }}</span>
+          <v-chip
+            :color="item.is_purchased ? 'success' : getPriorityColor(item.priority)"
+            size="small"
           >
-            <!-- Item Image -->
-            <div class="relative overflow-hidden">
-              <img 
-                :src="item.imageUrl" 
-                :alt="item.title"
-                class="w-full object-contain"
-                @load="handleImageLoad"
+            {{ item.is_purchased ? 'Purchased' : `Priority ${item.priority}` }}
+          </v-chip>
+        </v-card-title>
+
+        <v-card-text>
+          <p class="text-light-text dark:text-dark-text mb-2">
+            {{ item.description }}
+          </p>
+          <div class="flex items-center justify-between text-sm text-light-subtle dark:text-dark-subtle">
+            <span>${{ item.price }}</span>
+            <span>Size: {{ item.size }}</span>
+          </div>
+          
+          <div v-if="item.is_purchased" class="mt-2 text-sm text-success">
+            Purchased by {{ item.purchased_by?.username }}
+          </div>
+        </v-card-text>
+
+        <v-divider />
+
+        <v-card-actions>
+          <v-btn
+            v-if="item.link"
+            variant="text"
+            prepend-icon="mdi-link"
+            :href="item.link"
+            target="_blank"
+          >
+            View Item
+          </v-btn>
+          <v-spacer />
+          <template v-if="!isOwner">
+            <v-btn
+              v-if="!item.is_purchased"
+              color="success"
+              variant="text"
+              prepend-icon="mdi-cart"
+              @click="handlePurchase(item)"
+            >
+              Purchase
+            </v-btn>
+            <v-btn
+              v-else-if="item.purchased_by?.id === currentUser?.id"
+              color="error"
+              variant="text"
+              prepend-icon="mdi-cart-off"
+              @click="handleUnpurchase(item)"
+            >
+              Unpurchase
+            </v-btn>
+          </template>
+          <template v-else>
+            <v-btn
+              icon="mdi-pencil"
+              variant="text"
+              @click="openEditItemDialog(item)"
+            />
+            <v-btn
+              icon="mdi-delete"
+              variant="text"
+              color="error"
+              @click="confirmDeleteItem(item)"
+            />
+          </template>
+        </v-card-actions>
+      </v-card>
+    </div>
+
+    <!-- Create/Edit Item Dialog -->
+    <v-dialog
+      v-model="itemDialog.show"
+      max-width="600"
+    >
+      <v-card>
+        <v-card-title>
+          {{ itemDialog.mode === 'create' ? 'Add Item' : 'Edit Item' }}
+        </v-card-title>
+
+        <v-card-text>
+          <v-form @submit.prevent="handleItemSubmit" ref="form">
+            <v-text-field
+              v-model="itemForm.link"
+              label="Link to Item*" 
+              type="url"
+              :loading="scraping"
+              :error-messages="itemErrors.link"
+              required
+              @keyup.enter="scrapeUrl"
+            >
+              <template v-slot:append>
+                <v-btn
+                  icon
+                  :loading="scraping"
+                  @click="scrapeUrl"
+                  :disabled="!itemForm.link"
+                >
+                  <v-icon>mdi-magnify</v-icon>
+                </v-btn>
+              </template>
+            </v-text-field>
+
+            <!-- Other form fields should be disabled until scraping is done -->
+            <v-text-field
+              v-model="itemForm.title"
+              label="Item Name*"
+              required
+              :error-messages="itemErrors.title"
+              :disabled="!hasScrapedData"
+            />
+            
+            <v-textarea
+              v-model="itemForm.description"
+              label="Description"
+              rows="3"
+              :disabled="!hasScrapedData"
+            />
+
+            <div class="grid grid-cols-1">
+              <v-text-field
+                v-model.number="itemForm.price"
+                label="Price"
+                type="number"
+                required
+                prefix="$"
+                :error-messages="itemErrors.price"
+                :disabled="!hasScrapedData"
+                @input="updateSizeFromPrice"
               />
-              <div 
-                v-if="item.isPurchased"
-                class="absolute inset-0 bg-black/50 flex flex-col items-center justify-center p-4"
-              >
-                <v-icon
-                  icon="mdi-gift-outline"
-                  size="large"
-                  class="text-white mb-2"
-                />
-                <template v-if="!isOwner">
-                  <p class="text-white text-center text-sm">
-                    Purchased by {{ getPurchaserName(item.purchasedBy) }}
-                    <br>
-                    <span class="text-xs opacity-75">
-                      {{ formatPurchaseDate(item.purchasedAt) }}
-                    </span>
-                  </p>
-                </template>
-                <template v-else>
-                  <p class="text-white text-center">
-                    Purchased
-                  </p>
-                </template>
-              </div>
             </div>
 
-            <!-- Item Details -->
-            <div class="p-4">
-              <h3 class="text-lg font-semibold text-light-text dark:text-dark-text mb-2">
-                {{ item.title }}
-              </h3>
-              <p class="text-light-subtle dark:text-dark-subtle mb-4">
-                ${{ item.price }}
-              </p>
-              
-              <!-- Actions -->
-              <div class="flex items-center justify-between">
-                <v-chip
-                  :color="item.isPurchased ? 'success' : item.size === 'Large' ? 'error' : item.size === 'Medium' ? 'warning' : 'info'"
-                  size="small"
+            <div v-if="allImages.length" class="mt-4">
+              <label class="text-subtitle-1 mb-2 d-block">Select Image</label>
+              <div class="image-grid">
+                <div 
+                  v-for="(image, index) in allImages" 
+                  :key="index"
+                  class="image-item"
+                  :class="{ 'selected': image === itemForm.image_url }"
+                  @click="itemForm.image_url = image"
                 >
-                  {{ item.isPurchased ? 'Purchased' : `${item.size} ($${item.price})` }}
-                </v-chip>
-                
-                <div class="flex items-center space-x-2">
-                  <v-btn
-                    v-if="!isOwner && !item.isPurchased"
-                    variant="tonal"
-                    size="small"
-                    color="primary"
-                    class="px-4"
-                    @click="initiatePurchase(item)"
+                  <v-img
+                    :src="image"
+                    aspect-ratio="1"
+                    cover
+                    class="rounded"
+                    :class="{ 'v-img--selected': image === itemForm.image_url }"
                   >
-                    <v-icon icon="mdi-gift" size="small" class="mr-2" />
-                    Mark as Purchased
-                  </v-btn>
-                  <template v-if="isOwner">
-                    <v-btn
-                      icon="mdi-pencil"
-                      variant="text"
-                      size="small"
-                      class="text-light-subtle dark:text-dark-subtle"
-                      @click="editItem(item)"
-                    />
-                    <v-btn
-                      icon="mdi-delete"
-                      variant="text"
-                      size="small"
-                      color="error"
-                      @click="confirmDeleteItem(item)"
-                    />
-                  </template>
+                    <template v-slot:placeholder>
+                      <div class="d-flex align-center justify-center fill-height">
+                        <v-progress-circular
+                          indeterminate
+                          color="primary"
+                        ></v-progress-circular>
+                      </div>
+                    </template>
+                  </v-img>
                 </div>
               </div>
             </div>
-          </v-card>
-        </div>
-      </template>
-      </vue-draggable>
-    </TransitionGroup>
+          </v-form>
+        </v-card-text>
 
-    <!-- Add/Edit Item Dialog -->
-    <v-dialog v-model="itemDialogVisible" max-width="500px">
-      <v-card class="p-6">
-        <h3 class="text-xl font-semibold mb-4">
-          {{ editingItem ? 'Edit Item' : 'Add Item' }}
-        </h3>
-        
-        <v-form @submit.prevent="saveItem">
-          <v-text-field
-            v-model="itemForm.title"
-            label="Title"
-            required
-            class="mb-4"
-          />
-          
-          <v-text-field
-            v-model.number="itemForm.price"
-            label="Price"
-            type="number"
-            required
-            class="mb-4"
-            @input="itemForm.size = calculateSize($event.target.value)"
-          />
-          
-          <v-text-field
-            v-model="itemForm.link"
-            label="Link"
-            required
-            class="mb-4"
-          />
-          
-          <div class="mb-4">
-            <label class="block text-sm font-medium mb-2">Image</label>
-            <div class="flex gap-4">
-              <v-file-input
-                @change="handleImageInput"
-                accept="image/*"
-                label="Upload Image"
-                class="flex-1"
-              />
-              <span class="text-center py-2">or</span>
-              <v-text-field
-                v-model="itemForm.image"
-                label="Image URL"
-                class="flex-1"
-                @input="handleImageUrl($event.target.value)"
-              />
-            </div>
-          </div>
-          
-          <div class="mb-4">
-            <label class="block text-sm font-medium mb-2">Size Category</label>
-            <v-chip-group
-              v-model="itemForm.size"
-              mandatory
-              selected-class="!bg-primary text-white"
-            >
-              <v-chip
-                value="Small"
-                :disabled="itemForm.price > 50"
-                :class="{ 'opacity-50': itemForm.price > 50 }"
-              >
-                Small ($25-50)
-              </v-chip>
-              <v-chip
-                value="Medium"
-                :disabled="itemForm.price <= 50 || itemForm.price > 100"
-                :class="{ 'opacity-50': itemForm.price <= 50 || itemForm.price > 100 }"
-              >
-                Medium ($51-100)
-              </v-chip>
-              <v-chip
-                value="Large"
-                :disabled="itemForm.price <= 100"
-                :class="{ 'opacity-50': itemForm.price <= 100 }"
-              >
-                Large ($100+)
-              </v-chip>
-            </v-chip-group>
-          </div>
-          
-          <div class="flex justify-end gap-3">
-            <v-btn
-              variant="outlined"
-              @click="itemDialogVisible = false"
-            >
-              Cancel
-            </v-btn>
-            <v-btn
-              color="primary"
-              type="submit"
-              :loading="saving"
-            >
-              {{ editingItem ? 'Save' : 'Add' }}
-            </v-btn>
-          </div>
-        </v-form>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn
+            variant="text"
+            @click="itemDialog.show = false"
+          >
+            Cancel
+          </v-btn>
+          <v-btn
+            color="primary"
+            :loading="loading"
+            :disabled="!hasScrapedData"
+            @click="handleItemSubmit"
+          >
+            {{ itemDialog.mode === 'create' ? 'Add Item' : 'Save Changes' }}
+          </v-btn>
+        </v-card-actions>
       </v-card>
     </v-dialog>
 
-    <!-- Delete Confirmation Dialog -->
-    <v-dialog v-model="deleteDialogVisible" max-width="400px">
-      <v-card class="p-6">
-        <h3 class="text-xl font-semibold mb-4">Confirm Delete</h3>
-        <p class="mb-6">Are you sure you want to delete this item?</p>
-        <div class="flex justify-end gap-3">
+    <!-- Delete Item Confirmation -->
+    <v-dialog
+      v-model="deleteItemDialog.show"
+      max-width="400"
+    >
+      <v-card>
+        <v-card-title class="text-error">
+          Delete Item
+        </v-card-title>
+        <v-card-text>
+          Are you sure you want to delete "{{ deleteItemDialog.item?.title }}"?
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
           <v-btn
-            variant="outlined"
-            @click="deleteDialogVisible = false"
+            variant="text"
+            @click="deleteItemDialog.show = false"
           >
             Cancel
           </v-btn>
           <v-btn
             color="error"
-            @click="deleteItem"
-            :loading="deleting"
+            :loading="loading"
+            @click="handleDeleteItem"
           >
             Delete
           </v-btn>
-        </div>
-      </v-card>
-    </v-dialog>
-
-    <!-- Purchase Confirmation Dialog -->
-    <v-dialog v-model="purchaseDialogVisible" max-width="400px">
-      <v-card class="p-6">
-        <h3 class="text-xl font-semibold mb-4">Confirm Purchase</h3>
-        <p class="mb-6">
-          Are you sure you want to mark this item as purchased? 
-          This will let others know you're buying this gift.
-        </p>
-        <div class="flex justify-end gap-3">
-          <v-btn
-            variant="outlined"
-            @click="purchaseDialogVisible = false"
-          >
-            Cancel
-          </v-btn>
-          <v-btn
-            color="primary"
-            @click="confirmPurchase"
-            :loading="purchasing"
-          >
-            Confirm Purchase
-          </v-btn>
-        </div>
+        </v-card-actions>
       </v-card>
     </v-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { ref, computed, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { wishlistsService, type WishList, type WishListItem } from '@/services/wishlists'
 import { useAppStore } from '@/stores/useAppStore'
-import type { GiftItem } from '@/stores/useAppStore'
-import VueDraggable from 'vuedraggable'
+import { format } from 'date-fns'
 
 const route = useRoute()
+const router = useRouter()
 const store = useAppStore()
+const currentUser = computed(() => store.currentUser)
 
-const wishlistId = parseInt(route.params.id as string, 10)
+const wishlist = ref<WishList | null>(null)
+const loading = ref(false)
+const error = ref('')
 
-// State
-const itemDialogVisible = ref(false)
-const deleteDialogVisible = ref(false)
-const saving = ref(false)
-const deleting = ref(false)
-const editingItem = ref<GiftItem | null>(null)
-const selectedItem = ref<GiftItem | null>(null)
-const purchaseDialogVisible = ref(false)
-const purchasing = ref(false)
-const selectedForPurchase = ref<GiftItem | null>(null)
+const isOwner = computed(() => 
+  wishlist.value?.owner.id === currentUser.value?.id
+)
+
+// Item dialog state
+const itemDialog = ref({
+  show: false,
+  mode: 'create',
+  item: null,
+})
 
 const itemForm = ref({
   title: '',
-  price: 0,
+  description: '',
+  price: '',
   link: '',
-  image: null as File | string | null,
-  size: 'Medium' as 'Small' | 'Medium' | 'Large'
+  image_url: '',
+  size: 'Medium',
+  priority: 3,
+  wishlist: null,
 })
 
-const filters = ref({
-  search: '',
-  size: 'All',
-  priceRange: [0, 200],
-  status: 'All'
+const itemErrors = ref({
+  title: '',
+  description: '',
+  price: '',
+  link: '',
+  image_url: '',
 })
 
-// Computed
-const wishlist = computed(() => 
-  store.wishlists.find(w => w.id === wishlistId)
-)
+const deleteItemDialog = ref({
+  show: false,
+  item: null as WishListItem | null
+})
 
-const items = computed({
-  get: () => {
-    let filteredItems = wishlist.value?.items || []
-    
-    // Apply search filter
-    if (filters.value.search) {
-      const searchTerm = filters.value.search.toLowerCase()
-      filteredItems = filteredItems.filter(item => 
-        item.title.toLowerCase().includes(searchTerm)
-      )
-    }
-    
-    // Apply size filter
-    if (filters.value.size !== 'All') {
-      filteredItems = filteredItems.filter(item => 
-        item.size === filters.value.size
-      )
-    }
-    
-    // Apply price range filter
-    filteredItems = filteredItems.filter(item => 
-      item.price >= filters.value.priceRange[0] && 
-      item.price <= filters.value.priceRange[1]
-    )
-    
-    // Apply status filter
-    if (filters.value.status !== 'All') {
-      const isPurchased = filters.value.status === 'Purchased'
-      filteredItems = filteredItems.filter(item => 
-        item.isPurchased === isPurchased
-      )
-    }
-    
-    return filteredItems
-  },
-  set: (newItems) => {
-    if (wishlist.value) {
-      store.updateWishlist(wishlistId, {
-        ...wishlist.value,
-        items: newItems
-      })
-    }
+const scraping = ref(false)
+const allImages = ref([])
+const hasScrapedData = ref(false)
+
+onMounted(async () => {
+  await loadWishlist()
+})
+
+async function loadWishlist() {
+  try {
+    loading.value = true
+    const wishlistId = Number(route.params.id)
+    wishlist.value = await wishlistsService.getWishlist(wishlistId)
+  } catch (err) {
+    error.value = 'Failed to load wishlist'
+    console.error(err)
+  } finally {
+    loading.value = false
   }
-})
+}
 
-const filterStats = computed(() => {
-  const total = wishlist.value?.items.length || 0
-  const filtered = items.value.length
-  return {
-    total,
-    filtered,
-    isFiltered: filtered !== total
+function openCreateItemDialog() {
+  itemDialog.value = {
+    show: true,
+    mode: 'create',
+    item: null,
   }
-})
-
-const isOwner = computed(() => 
-  wishlist.value?.ownerId === store.currentUserId
-)
-
-const getOwnerName = computed(() => {
-  if (!wishlist.value) return ''
-  const owner = store.users.find(u => u.id === wishlist.value?.ownerId)
-  return owner?.name || 'Unknown'
-})
-
-const getOwnerInitials = computed(() => {
-  return getOwnerName.value
-    .split(' ')
-    .map(n => n[0])
-    .join('')
-    .toUpperCase()
-})
-
-const getFamilyName = computed(() => {
-  if (!wishlist.value) return ''
-  const family = store.families.find(f => f.id === wishlist.value?.familyId)
-  return family?.name || 'Unknown Family'
-})
-
-const isMyWishlist = computed(() => 
-  wishlist.value?.ownerId === store.currentUserId
-)
-
-// Methods
-const openAddItemDialog = () => {
-  editingItem.value = null
+  
+  // Reset form
   itemForm.value = {
     title: '',
-    price: 0,
+    description: '',
+    price: '',
     link: '',
-    image: null,
-    size: 'Medium'
+    image_url: '',
+    size: 'Medium',
+    priority: 3,
+    wishlist: route.params.id,
   }
-  itemDialogVisible.value = true
+  
+  // Reset errors and images
+  itemErrors.value = {
+    title: '',
+    description: '',
+    price: '',
+    link: '',
+    image_url: '',
+  }
+  allImages.value = []
+  hasScrapedData.value = false
 }
 
-const editItem = (item: GiftItem) => {
-  editingItem.value = item
+function openEditItemDialog(item: WishListItem) {
+  itemDialog.value = {
+    show: true,
+    mode: 'edit',
+    item
+  }
   itemForm.value = {
-    title: item.title,
-    price: item.price,
-    link: item.link,
-    image: null,
-    size: item.size
+    ...item,
+    wishlist: item.wishlist
   }
-  itemDialogVisible.value = true
-}
-
-const handleImageInput = (event: Event) => {
-  const input = event.target as HTMLInputElement
-  if (input.files && input.files[0]) {
-    itemForm.value.image = input.files[0]
+  itemErrors.value = {
+    title: '',
+    price: '',
+    image: ''
   }
 }
 
-const handleImageUrl = (url: string) => {
-  itemForm.value.image = url
+function confirmDeleteItem(item: WishListItem) {
+  deleteItemDialog.value = {
+    show: true,
+    item
+  }
 }
 
-const saveItem = async () => {
-  if (!itemForm.value.image) return
-  
-  saving.value = true
+async function handleItemSubmit() {
   try {
-    let imageUrl: string
+    loading.value = true
+    itemErrors.value = { title: '', price: '', image: '' }
+
+    // Create FormData for submission
+    const formData = new FormData()
+    formData.append('title', itemForm.value.title)
+    formData.append('description', itemForm.value.description || '')
+    formData.append('price', itemForm.value.price.toString())
+    formData.append('link', itemForm.value.link || '')
+    formData.append('size', itemForm.value.size)
+    formData.append('priority', itemForm.value.priority.toString())
+    formData.append('wishlist', itemForm.value.wishlist.toString())
     
-    if (typeof itemForm.value.image === 'string') {
-      imageUrl = itemForm.value.image
+    // Add image_url if it exists
+    if (itemForm.value.image_url) {
+      formData.append('image_url', itemForm.value.image_url)
+    }
+
+    if (itemDialog.value.item) {
+      await wishlistsService.updateItem(itemDialog.value.item.id, formData)
     } else {
-      // In a real app, we'd upload the file to a server
-      imageUrl = URL.createObjectURL(itemForm.value.image)
+      await wishlistsService.createItem(formData)
     }
-    
-    const itemData = {
-      title: itemForm.value.title,
-      price: itemForm.value.price,
-      link: itemForm.value.link,
-      size: itemForm.value.size,
-      imageUrl,
-      isPurchased: false
-    }
-    
-    if (editingItem.value) {
-      await store.updateWishlistItem(wishlistId, editingItem.value.id, itemData)
+
+    await loadWishlist()
+    itemDialog.value.show = false
+  } catch (err: any) {
+    if (err.response?.data) {
+      itemErrors.value = {
+        title: err.response.data.title?.[0] || '',
+        description: '',
+        price: err.response.data.price?.[0] || '',
+        link: err.response.data.link?.[0] || '',
+        image_url: err.response.data.image_url?.[0] || ''
+      }
     } else {
-      await store.addWishlistItem(wishlistId, itemData)
+      error.value = 'An error occurred'
     }
-    itemDialogVisible.value = false
   } finally {
-    saving.value = false
+    loading.value = false
   }
 }
 
-const confirmDeleteItem = (item: GiftItem) => {
-  selectedItem.value = item
-  deleteDialogVisible.value = true
-}
+async function handleDeleteItem() {
+  if (!deleteItemDialog.value.item) return
 
-const deleteItem = async () => {
-  if (!selectedItem.value) return
-  
-  deleting.value = true
   try {
-    await store.deleteWishlistItem(wishlistId, selectedItem.value.id)
-    deleteDialogVisible.value = false
+    loading.value = true
+    await wishlistsService.deleteItem(deleteItemDialog.value.item.id)
+    await loadWishlist()
+    deleteItemDialog.value.show = false
+  } catch (err) {
+    error.value = 'Failed to delete item'
+    console.error(err)
   } finally {
-    deleting.value = false
+    loading.value = false
   }
 }
 
-const initiatePurchase = (item: GiftItem) => {
-  selectedForPurchase.value = item
-  purchaseDialogVisible.value = true
-}
-
-const confirmPurchase = async () => {
-  if (!selectedForPurchase.value) return
-  
-  purchasing.value = true
+async function handlePurchase(item: WishListItem) {
   try {
-    await store.updateWishlistItem(wishlistId, selectedForPurchase.value.id, {
-      isPurchased: true,
-      purchasedBy: store.currentUserId,
-      purchasedAt: new Date()
-    })
-    purchaseDialogVisible.value = false
+    loading.value = true
+    await wishlistsService.purchaseItem(item.id)
+    await loadWishlist()
+  } catch (err) {
+    error.value = 'Failed to mark item as purchased'
+    console.error(err)
   } finally {
-    purchasing.value = false
-    selectedForPurchase.value = null
+    loading.value = false
   }
 }
 
-const getPurchaserName = (userId?: number) => {
-  if (!userId) return 'Unknown'
-  const user = store.users.find(u => u.id === userId)
-  return user?.name || 'Unknown'
-}
-
-const formatPurchaseDate = (date?: Date) => {
-  if (!date) return ''
-  return new Date(date).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric'
-  })
-}
-
-const handleDragEnd = () => {
-  // Handle drag end if needed
-  // Currently the v-model handles the reordering automatically
-}
-
-const handleImageLoad = (event: Event) => {
-  const img = event.target as HTMLImageElement
-  const container = img.parentElement
-  if (container) {
-    const ratio = img.naturalHeight / img.naturalWidth
-    container.style.paddingTop = `${ratio * 100}%`
-    img.style.position = 'absolute'
-    img.style.top = '0'
-    img.style.left = '0'
-    img.style.width = '100%'
-    img.style.height = '100%'
+async function handleUnpurchase(item: WishListItem) {
+  try {
+    loading.value = true
+    await wishlistsService.unpurchaseItem(item.id)
+    await loadWishlist()
+  } catch (err) {
+    error.value = 'Failed to mark item as unpurchased'
+    console.error(err)
+  } finally {
+    loading.value = false
   }
 }
 
-const copyToMyWishlist = async () => {
-  if (!wishlist.value) return
-  
-  // Find or create my wishlist
-  let myWishlist = store.myWishlists[0]
-  if (!myWishlist) {
-    myWishlist = await store.createWishlist({
-      name: `${store.currentUser?.name}'s Wishlist`,
-      ownerId: store.currentUserId,
-      familyId: wishlist.value.familyId
-    })
+function getPriorityColor(priority: number) {
+  switch (priority) {
+    case 1: return 'info'
+    case 2: return 'success'
+    case 3: return 'warning'
+    case 4: return 'error'
+    case 5: return 'error'
+    default: return 'primary'
+  }
+}
+
+function formatDate(date: string) {
+  return format(new Date(date), 'MMM d, yyyy')
+}
+
+function handleImageChange(file: File | null) {
+  if (file && file.size > 5 * 1024 * 1024) { // 5MB limit
+    itemErrors.value.image = 'Image size should be less than 5MB'
+    itemForm.value.image = null
+    return
+  }
+  itemForm.value.image = file
+}
+
+async function scrapeUrl() {
+  if (!itemForm.value.link) {
+    itemErrors.value.link = 'Please enter a valid URL'
+    return
+  }
+
+  try {
+    scraping.value = true
+    const response = await wishlistsService.scrapeUrl(itemForm.value.link)
+    
+    // Update form with scraped data
+    itemForm.value = {
+      ...itemForm.value,
+      title: response.title || itemForm.value.title,
+      description: response.description || itemForm.value.description,
+      price: response.price || itemForm.value.price,
+      image_url: response.image_url || itemForm.value.image_url
+    }
+
+    // Set size based on scraped price
+    if (response.price) {
+      updateSizeFromPrice(response.price)
+    }
+
+    // Update available images
+    allImages.value = response.all_images || []
+    
+    // Enable form fields after successful scrape
+    hasScrapedData.value = true
+  } catch (err) {
+    error.value = 'Failed to scrape URL'
+    console.error(err)
+    hasScrapedData.value = false
+  } finally {
+    scraping.value = false
+  }
+}
+
+function updateSizeFromPrice(price: number) {
+  if (!price) {
+    itemForm.value.size = 'Medium'
+    return
   }
   
-  // Get the selected item
-  const selectedItem = wishlist.value.items.find(i => !i.isPurchased)
-  if (!selectedItem) return
-  
-  // Add to my wishlist
-  await store.addWishlistItem(myWishlist.id, {
-    title: selectedItem.title,
-    price: selectedItem.price,
-    link: selectedItem.link,
-    size: selectedItem.size,
-    imageUrl: selectedItem.imageUrl,
-    isPurchased: false
-  })
-  
-  // Show success message (you'll need to implement this)
-  // showNotification('Item added to your wishlist')
-}
-
-const calculateSize = (price: number) => {
-  if (price <= 50) return 'Small'
-  if (price <= 100) return 'Medium'
-  return 'Large'
-}
-
-const clearFilters = () => {
-  filters.value = {
-    search: '',
-    size: 'All',
-    priceRange: [0, 200],
-    status: 'All'
+  if (price <= 25) {
+    itemForm.value.size = 'Stocking'
+  } else if (price <= 50) {
+    itemForm.value.size = 'Small'
+  } else if (price <= 100) {
+    itemForm.value.size = 'Medium'
+  } else {
+    itemForm.value.size = 'Large'
   }
 }
 </script>
 
-<style>
-.masonry-grid {
-  columns: 1 300px;
-  column-gap: 1.5rem;
+<style scoped>
+.image-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 4px;
 }
 
-.masonry-item {
-  break-inside: avoid;
-  margin-bottom: 1.5rem;
-  opacity: 1;
-  transform: translateY(0);
-  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+.image-item {
+  cursor: pointer;
+  border: 2px solid transparent;
+  border-radius: 4px;
+  transition: all 0.2s ease;
 }
 
-/* Enter animation */
-.masonry-item-enter-active {
-  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.masonry-item-enter-from {
-  opacity: 0;
-  transform: translateY(20px);
-}
-
-/* Leave animation */
-.masonry-item-leave-active {
-  position: absolute;
-  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.masonry-item-leave-to {
-  opacity: 0;
-  transform: translateY(-20px);
-}
-
-/* Image container */
-.relative.overflow-hidden {
-  position: relative;
-  background: #f5f5f5;
-}
-
-/* Drag and drop states */
-.ghost-item {
-  opacity: 0.5;
-  background: #f0f0f0;
-  border: 2px dashed var(--v-primary-base) !important;
-}
-
-.chosen-item {
-  cursor: grabbing !important;
-}
-
-.drag-item {
-  opacity: 0.8;
+.image-item:hover {
   transform: scale(1.05);
-  box-shadow: 0 5px 15px rgba(0,0,0,0.1);
 }
 
-/* Smooth transitions */
-.masonry-item {
-  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+.image-item.selected {
+  border-color: rgb(var(--v-theme-primary));
 }
 
-@media (min-width: 640px) {
-  .masonry-grid {
-    columns: 2 300px;
-  }
+.v-img--selected {
+  box-shadow: 0 0 0 2px rgb(var(--v-theme-primary));
 }
 
-@media (min-width: 1024px) {
-  .masonry-grid {
-    columns: 3 300px;
-  }
-}
-
-@media (min-width: 1280px) {
-  .masonry-grid {
-    columns: 4 300px;
-  }
-}
-
-/* Add smooth animation for items */
-.v-card {
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.v-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+/* Dark mode support */
+:deep(.v-theme--dark) .image-grid {
+  border-color: rgba(255, 255, 255, 0.12);
 }
 </style>

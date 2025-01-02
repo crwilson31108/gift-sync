@@ -1,268 +1,172 @@
 <template>
-  <div class="py-8">
-    <!-- Header -->
-    <div class="flex items-center justify-between mb-8">
-      <div>
-        <h2 class="text-3xl font-bold text-primary mb-2">Members</h2>
-        <p class="text-light-subtle dark:text-dark-subtle">
-          Manage members and invitations
-        </p>
-      </div>
-      <v-btn
-        color="primary"
-        class="px-6"
-        prepend-icon="mdi-email-plus"
-        @click="openInviteDialog"
-      >
-        Invite Member
-      </v-btn>
+  <div>
+    <div class="flex justify-between items-center mb-6">
+      <h1 class="text-2xl font-bold text-light-text dark:text-dark-text">
+        Family Members
+      </h1>
+      <v-text-field
+        v-model="search"
+        prepend-inner-icon="mdi-magnify"
+        label="Search members"
+        single-line
+        hide-details
+        class="max-w-xs"
+        @update:model-value="handleSearch"
+      />
     </div>
 
-    <!-- Tabs -->
-    <v-tabs v-model="activeTab" class="mb-6">
-      <v-tab value="members">
-        <v-icon icon="mdi-account-group" class="mr-2" />
-        Members
-      </v-tab>
-      <v-tab value="invitations">
-        <v-icon icon="mdi-email-outline" class="mr-2" />
-        Invitations
-      </v-tab>
-    </v-tabs>
+    <!-- Loading State -->
+    <div v-if="loading" class="flex justify-center py-8">
+      <v-progress-circular indeterminate color="primary" />
+    </div>
 
-    <!-- Members Tab -->
-    <v-window v-model="activeTab">
-      <v-window-item value="members">
-        <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          <v-card
-            v-for="user in users"
-            :key="user.id"
-            class="bg-light-surface dark:bg-dark-surface border border-accent/10"
-            elevation="0"
+    <!-- Error State -->
+    <v-alert
+      v-else-if="error"
+      type="error"
+      class="mb-4"
+    >
+      {{ error }}
+    </v-alert>
+
+    <!-- Empty State -->
+    <div 
+      v-else-if="!members.length"
+      class="text-center py-12"
+    >
+      <v-icon
+        icon="mdi-account-group-outline"
+        size="64"
+        class="text-light-subtle dark:text-dark-subtle mb-4"
+      />
+      <h3 class="text-xl font-medium text-light-text dark:text-dark-text mb-2">
+        No Members Found
+      </h3>
+      <p class="text-light-subtle dark:text-dark-subtle">
+        {{ search ? 'Try a different search term' : 'Join or create a family to see members' }}
+      </p>
+    </div>
+
+    <!-- Members Grid -->
+    <div 
+      v-else 
+      class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+    >
+      <v-card
+        v-for="member in members"
+        :key="member.id"
+        class="bg-light-surface dark:bg-dark-surface"
+      >
+        <div class="p-4 flex items-center space-x-4">
+          <v-avatar
+            size="56"
+            color="primary"
           >
-            <div class="p-6">
-              <div class="flex items-center space-x-4">
-                <v-avatar color="primary" size="48">
-                  <span class="text-lg">{{ user.name.charAt(0).toUpperCase() }}</span>
-                </v-avatar>
-                <div class="flex-1 min-w-0">
-                  <h3 class="text-xl font-semibold text-light-text dark:text-dark-text truncate">
-                    {{ user.name }}
-                  </h3>
-                  <p class="text-light-subtle dark:text-dark-subtle truncate">
-                    {{ user.email }}
-                  </p>
-                </div>
-              </div>
-              
-              <!-- Member's Families -->
-              <div class="mt-4">
-                <p class="text-sm font-medium text-light-subtle dark:text-dark-subtle mb-2">
-                  Families
-                </p>
-                <div class="flex flex-wrap gap-2">
-                  <v-chip
-                    v-for="familyId in getUserFamilies(user.id)"
-                    :key="familyId"
-                    size="small"
-                    class="bg-primary/10 text-primary"
-                  >
-                    {{ getFamilyName(familyId) }}
-                  </v-chip>
-                </div>
-              </div>
-            </div>
-          </v-card>
-        </div>
-      </v-window-item>
+            <v-img
+              v-if="member.profile_picture"
+              :src="member.profile_picture"
+              :alt="member.username"
+            />
+            <span v-else class="text-lg">
+              {{ member.username[0].toUpperCase() }}
+            </span>
+          </v-avatar>
 
-      <!-- Invitations Tab -->
-      <v-window-item value="invitations">
-        <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          <v-card
-            v-for="invitation in pendingInvitations"
-            :key="invitation.id"
-            class="bg-light-surface dark:bg-dark-surface border border-accent/10"
-            elevation="0"
-          >
-            <div class="p-6">
-              <div class="flex items-center justify-between mb-4">
-                <div class="flex items-center space-x-3">
-                  <v-icon icon="mdi-email-outline" size="large" class="text-primary" />
-                  <div>
-                    <p class="text-light-text dark:text-dark-text font-medium">
-                      {{ invitation.email }}
-                    </p>
-                    <p class="text-sm text-light-subtle dark:text-dark-subtle">
-                      Invited to {{ getFamilyName(invitation.familyId) }}
-                    </p>
-                  </div>
-                </div>
-                <v-chip
-                  :color="getStatusColor(invitation.status)"
-                  size="small"
-                >
-                  {{ invitation.status }}
-                </v-chip>
-              </div>
-              
-              <div class="text-sm text-light-subtle dark:text-dark-subtle">
-                Sent {{ formatDate(invitation.createdAt) }}
-              </div>
-              
-              <div class="mt-4 flex justify-end space-x-2" v-if="invitation.status === 'pending'">
-                <v-btn
-                  variant="text"
-                  color="error"
-                  size="small"
-                  @click="cancelInvitation(invitation.id)"
-                >
-                  Cancel
-                </v-btn>
-                <v-btn
-                  variant="text"
-                  color="primary"
-                  size="small"
-                  @click="resendInvitation(invitation)"
-                >
-                  Resend
-                </v-btn>
-              </div>
+          <div class="flex-1 min-w-0">
+            <h3 class="text-lg font-medium text-light-text dark:text-dark-text truncate">
+              {{ member.username }}
+            </h3>
+            <p class="text-sm text-light-subtle dark:text-dark-subtle truncate">
+              {{ member.email }}
+            </p>
+            <div class="flex items-center mt-1 space-x-2">
+              <v-chip
+                v-for="family in getMemberFamilies(member)"
+                :key="family.id"
+                size="small"
+                class="text-xs"
+              >
+                {{ family.name }}
+              </v-chip>
             </div>
-          </v-card>
-        </div>
-      </v-window-item>
-    </v-window>
-
-    <!-- Invite Dialog -->
-    <v-dialog v-model="inviteDialog" max-width="500px">
-      <v-card class="p-6">
-        <h3 class="text-xl font-semibold mb-4">Invite New Member</h3>
-        <v-form @submit.prevent="sendInvitation">
-          <v-select
-            v-model="inviteForm.familyId"
-            :items="families"
-            item-title="name"
-            item-value="id"
-            label="Select Family"
-            required
-          />
-          <v-text-field
-            v-model="inviteForm.email"
-            label="Email Address"
-            type="email"
-            required
-            :rules="[
-              v => !!v || 'Email is required',
-              v => /.+@.+\..+/.test(v) || 'Email must be valid'
-            ]"
-          />
-          <div class="flex justify-end gap-3 mt-6">
-            <v-btn
-              variant="outlined"
-              @click="inviteDialog = false"
-            >
-              Cancel
-            </v-btn>
-            <v-btn
-              color="primary"
-              type="submit"
-              :loading="sending"
-            >
-              Send Invitation
-            </v-btn>
           </div>
-        </v-form>
+        </div>
+
+        <v-divider />
+
+        <v-card-actions>
+          <v-btn
+            variant="text"
+            prepend-icon="mdi-gift"
+            :to="`/wishlists?user=${member.id}`"
+          >
+            View Wishlists
+          </v-btn>
+        </v-card-actions>
       </v-card>
-    </v-dialog>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useAppStore } from '@/stores/useAppStore'
-import { storeToRefs } from 'pinia'
-import { format } from 'date-fns'
+import { ref, onMounted } from 'vue'
+import { usersService } from '@/services/users'
+import { familiesService, type Family } from '@/services/families'
+import type { User } from '@/types'
+import { useDebounce } from '@/composables/useDebounce'
 
-const store = useAppStore()
-const { families, users, invitations } = storeToRefs(store)
+const members = ref<User[]>([])
+const families = ref<Family[]>([])
+const loading = ref(false)
+const error = ref('')
+const search = ref('')
 
-const activeTab = ref('members')
-const inviteDialog = ref(false)
-const sending = ref(false)
+// Debounce search input
+const debouncedSearch = useDebounce(search, 300)
 
-const inviteForm = ref({
-  familyId: null as number | null,
-  email: ''
+// Fetch initial data
+onMounted(async () => {
+  try {
+    loading.value = true
+    const [membersData, familiesData] = await Promise.all([
+      usersService.getMembers(),
+      familiesService.getFamilies()
+    ])
+    members.value = membersData
+    families.value = familiesData
+  } catch (err) {
+    error.value = 'Failed to load members'
+    console.error(err)
+  } finally {
+    loading.value = false
+  }
 })
 
-// Computed
-const pendingInvitations = computed(() => 
-  invitations.value.filter(i => i.status === 'pending')
-)
-
-// Methods
-const getUserFamilies = (userId: number) => {
-  return families.value
-    .filter(f => f.members.includes(userId))
-    .map(f => f.id)
-}
-
-const getFamilyName = (familyId: number) => {
-  const family = families.value.find(f => f.id === familyId)
-  return family?.name || 'Unknown Family'
-}
-
-const getStatusColor = (status: string) => {
-  switch (status) {
-    case 'pending': return 'warning'
-    case 'accepted': return 'success'
-    case 'declined': return 'error'
-    default: return 'default'
+// Handle search
+async function handleSearch() {
+  if (!debouncedSearch.value) {
+    // Reset to all members if search is cleared
+    const membersData = await usersService.getMembers()
+    members.value = membersData
+    return
   }
-}
 
-const formatDate = (date: Date) => {
-  return format(new Date(date), 'MMM d, yyyy')
-}
-
-const openInviteDialog = () => {
-  inviteForm.value = {
-    familyId: null,
-    email: ''
-  }
-  inviteDialog.value = true
-}
-
-const sendInvitation = async () => {
-  if (!inviteForm.value.familyId || !inviteForm.value.email) return
-  
-  sending.value = true
   try {
-    await store.inviteMemberByEmail(
-      inviteForm.value.familyId,
-      inviteForm.value.email
-    )
-    inviteDialog.value = false
-  } catch (error) {
-    console.error(error)
-    // Handle error (show notification, etc.)
+    loading.value = true
+    error.value = ''
+    members.value = await usersService.searchUsers(debouncedSearch.value)
+  } catch (err) {
+    error.value = 'Search failed'
+    console.error(err)
   } finally {
-    sending.value = false
+    loading.value = false
   }
 }
 
-const cancelInvitation = async (invitationId: number) => {
-  try {
-    await store.declineInvitation(invitationId)
-  } catch (error) {
-    console.error(error)
-    // Handle error
-  }
-}
-
-const resendInvitation = (invitation: any) => {
-  // Implement email resend logic
-  console.log('Resending invitation to:', invitation.email)
+// Helper function to get families for a member
+function getMemberFamilies(member: User) {
+  return families.value.filter(f => 
+    f.members.some(m => m.id === member.id)
+  )
 }
 </script> 

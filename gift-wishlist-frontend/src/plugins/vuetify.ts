@@ -20,6 +20,7 @@ export default createVuetify({
     defaultTheme: 'light',
     themes: {
       light: {
+        dark: false,
         colors: {
           primary: '#D32F2F',
           secondary: '#388E3C',
@@ -33,12 +34,17 @@ export default createVuetify({
         },
       },
       dark: {
+        dark: true,
         colors: {
           primary: '#D32F2F',
           secondary: '#388E3C',
           accent: '#FFD700',
           background: '#121212',
           surface: '#1E1E1E',
+          error: '#FF5252',
+          info: '#2196F3',
+          success: '#4CAF50',
+          warning: '#FFC107',
         },
       },
     },

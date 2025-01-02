@@ -8,30 +8,52 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Primary Colors
-        primary: '#D32F2F',    // Modern Christmas red
-        secondary: '#388E3C',  // Rich evergreen
-        accent: '#FFD700',     // Celebratory gold
-
-        // Light Mode
-        light: {
-          bg: '#FFFFFF',      // Light background
-          surface: '#F8F9FA',  // Surface/card background
-          text: '#212121',    // Primary text
-          subtle: '#757575',  // Secondary/subtle text
+        'light': {
+          'surface': 'rgb(var(--v-theme-surface))',
+          'background': 'rgb(var(--v-theme-background))',
+          'text': 'rgb(var(--v-theme-on-surface))',
+          'subtle': 'rgba(var(--v-theme-on-surface), 0.6)',
+          'border': 'rgba(var(--v-theme-on-surface), 0.12)',
         },
-
-        // Dark Mode
-        dark: {
-          bg: '#121212',      // Dark background
-          surface: '#1E1E1E', // Surface/card background
-          text: '#FFFFFF',    // Primary text
-          subtle: '#BDBDBD',  // Secondary/subtle text
+        'dark': {
+          'surface': 'rgb(var(--v-theme-surface-dark))',
+          'background': 'rgb(var(--v-theme-background-dark))',
+          'text': 'rgb(var(--v-theme-on-surface-dark))',
+          'subtle': 'rgba(var(--v-theme-on-surface-dark), 0.6)',
+          'border': 'rgba(var(--v-theme-on-surface-dark), 0.12)',
+        },
+        'primary': {
+          DEFAULT: 'rgb(var(--v-theme-primary))',
+          'dark': 'rgb(var(--v-theme-primary-dark))',
+        },
+        'secondary': {
+          DEFAULT: 'rgb(var(--v-theme-secondary))',
+          'dark': 'rgb(var(--v-theme-secondary-dark))',
+        },
+        'info': {
+          DEFAULT: 'rgb(var(--v-theme-info))',
+          'dark': 'rgb(var(--v-theme-info-dark))',
+        },
+        'success': {
+          DEFAULT: 'rgb(var(--v-theme-success))',
+          'dark': 'rgb(var(--v-theme-success-dark))',
+        },
+        'warning': {
+          DEFAULT: 'rgb(var(--v-theme-warning))',
+          'dark': 'rgb(var(--v-theme-warning-dark))',
+        },
+        'error': {
+          DEFAULT: 'rgb(var(--v-theme-error))',
+          'dark': 'rgb(var(--v-theme-error-dark))',
+        }
+      },
+      backgroundColor: {
+        'card': {
+          DEFAULT: 'rgb(var(--v-theme-surface))',
+          'dark': 'rgb(var(--v-theme-surface-dark))',
         }
       }
     },
   },
   plugins: [],
-  // Important to prevent conflicts with Vuetify
-  important: true,
 }
