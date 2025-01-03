@@ -168,11 +168,38 @@ REST_FRAMEWORK = {
 # CORS settings
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',  # Local development
-    'https://your-frontend-domain.com',  # Add your frontend domain here
+    'http://localhost:5173',  # Vite dev server
+    'https://gift-sync.vercel.app',  # Your frontend domain (adjust this)
 ]
+
+# For development, you might want to allow all origins
+CORS_ALLOW_ALL_ORIGINS = DEBUG
 
 # CSRF settings
 CSRF_TRUSTED_ORIGINS = [
     'https://*.railway.app',
-    'https://your-frontend-domain.com',  # Add your frontend domain here
+    'https://gift-sync.vercel.app',  # Your frontend domain (adjust this)
+]
+
+# Additional CORS settings
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
 ]
