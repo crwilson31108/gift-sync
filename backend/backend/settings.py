@@ -29,7 +29,11 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-9-xyg!_(wxb)^ez@dv$9d!49q(
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = [
+    'localhost',
+    '127.0.0.1',
+    'gift-sync-production.up.railway.app'
+]
 
 
 # Application definition
@@ -51,10 +55,10 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -167,18 +171,18 @@ REST_FRAMEWORK = {
 
 # CORS settings
 CORS_ALLOWED_ORIGINS = [
-    'http://localhost:3000',  # Local development
-    'http://localhost:5173',  # Vite dev server
-    'https://gift-sync.vercel.app',  # Your frontend domain (adjust this)
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'https://gift-sync.vercel.app'
 ]
 
-# For development, you might want to allow all origins
-CORS_ALLOW_ALL_ORIGINS = DEBUG
+# Disable CORS_ALLOW_ALL_ORIGINS in production
+CORS_ALLOW_ALL_ORIGINS = False
 
 # CSRF settings
 CSRF_TRUSTED_ORIGINS = [
-    'https://*.railway.app',
-    'https://gift-sync.vercel.app',  # Your frontend domain (adjust this)
+    'https://gift-sync.vercel.app',
+    'https://gift-sync-production.up.railway.app'
 ]
 
 # Additional CORS settings
