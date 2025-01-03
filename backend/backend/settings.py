@@ -166,13 +166,13 @@ REST_FRAMEWORK = {
 }
 
 # CORS settings
-CORS_ALLOW_ALL_ORIGINS = DEBUG
-CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:3000').split(',')
+CORS_ALLOWED_ORIGINS = [
+    'http://localhost:3000',  # Local development
+    'https://your-frontend-domain.com',  # Add your frontend domain here
+]
 
-# Update allowed hosts
-ALLOWED_HOSTS = ['*']  # You should update this with your Railway domain later
-
-# Add CSRF trusted origins
+# CSRF settings
 CSRF_TRUSTED_ORIGINS = [
-    'https://*.railway.app'  # Add your Railway domain here
+    'https://*.railway.app',
+    'https://your-frontend-domain.com',  # Add your frontend domain here
 ]
