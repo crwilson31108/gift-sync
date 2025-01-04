@@ -52,16 +52,12 @@
         >
           Sign in
         </v-btn>
-
-        <div class="mt-4 text-center">
-          <router-link 
-            to="/request-password-reset" 
-            class="text-blue-500 hover:underline"
-          >
-            Forgot your password?
-          </router-link>
-        </div>
       </v-form>
+
+      <!-- Added a subtle text at the bottom -->
+      <div class="mt-4 text-center text-xs text-light-subtle dark:text-dark-subtle">
+        Having trouble? Contact your family administrator
+      </div>
     </div>
   </div>
 </template>
