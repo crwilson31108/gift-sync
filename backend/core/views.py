@@ -11,6 +11,16 @@ from .serializers import (
 from django.db.models import Q
 from django.utils import timezone
 from .utils.scraper import ProductScraper
+from django.contrib.auth.tokens import default_token_generator
+from .utils.sendgrid_client import send_password_reset_email
+from django.urls import reverse
+from django.conf import settings
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
+import os
+from django.contrib.auth import get_user_model
 
 class UserViewSet(viewsets.ModelViewSet):
     serializer_class = UserSerializer
@@ -271,6 +281,14 @@ class NotificationViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return Notification.objects.filter(user=self.request.user)
 
+    @action(detail=True, methods=['PATCH'])
+    def read(self, request, pk=None):
+        notification = self.get_object()
+        notification.read = True
+        notification.save()
+        serializer = self.get_serializer(notification)
+        return Response(serializer.data)
+
     @action(detail=False, methods=['POST'])
     def mark_all_read(self, request):
         self.get_queryset().update(read=True)
@@ -315,4 +333,218 @@ class NotificationViewSet(viewsets.ModelViewSet):
                     'color': 'info'
                 })
         
-        return Response(activity) 
+        return Response(activity)
+
+class PasswordResetViewSet(viewsets.ViewSet):
+    permission_classes = [AllowAny]
+    
+    def initial(self, request, *args, **kwargs):
+        if request.method == 'OPTIONS':
+            response = Response()
+            response["Access-Control-Allow-Origin"] = "*"
+            response["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+            response["Access-Control-Allow-Headers"] = "Content-Type"
+            return response
+        return super().initial(request, *args, **kwargs)
+    
+    @action(detail=False, methods=['POST'])
+    def request_reset(self, request):
+        print("\n=== Starting Password Reset Request ===")
+        email = request.data.get('email')
+        ip_address = request.META.get('HTTP_X_FORWARDED_FOR', '') or request.META.get('REMOTE_ADDR', '')
+        
+        if not email:
+            return Response(
+                {'detail': 'Email is required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        print(f"Processing reset request for email: {email}")
+        print(f"Request IP: {ip_address}")
+        
+        try:
+            user = User.objects.get(email=email)
+            token = default_token_generator.make_token(user)
+            reset_url = f"{settings.FRONTEND_URL}/reset-password/{user.id}/{token}"
+            
+            message = Mail(
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                to_emails=[email],
+                subject="Password Reset Request - Gift Sync",
+                html_content=f'''
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                        <h2 style="color: #2c3e50; margin-bottom: 20px;">Password Reset Request</h2>
+                        <p style="color: #34495e; line-height: 1.5;">
+                            You have requested to reset your password. Click the link below to proceed:
+                        </p>
+                        <p style="margin: 25px 0;">
+                            <a href="{reset_url}" style="background-color: #3498db; color: white; padding: 12px 25px; text-decoration: none; border-radius: 3px;">
+                                Reset Password
+                            </a>
+                        </p>
+                        <p style="color: #34495e; line-height: 1.5;">
+                            If you did not request this password reset, please ignore this email.
+                        </p>
+                        <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+                        <p style="color: #7f8c8d; font-size: 12px; text-align: center;">
+                            Best regards,<br>
+                            The Gift Sync Team
+                        </p>
+                    </div>
+                '''
+            )
+            
+            try:
+                print("\nAttempting to send reset email...")
+                sg = SendGridAPIClient(settings.SENDGRID_API_KEY)
+                response = sg.send(message)
+                
+                print("\nResponse Details:")
+                print(f"Status code: {response.status_code}")
+                print(f"Headers: {response.headers}")
+                
+                if response.status_code == 202:
+                    print("\nReset email sent successfully!")
+                    return Response({'detail': 'Password reset email sent if account exists.'})
+                else:
+                    print(f"\nUnexpected status code: {response.status_code}")
+                    return Response(
+                        {'detail': 'Failed to send reset email. Please try again later.'},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                    )
+                    
+            except Exception as e:
+                print("\nError Details:")
+                print(f"Error type: {type(e)}")
+                print(f"Error message: {str(e)}")
+                if hasattr(e, 'body'):
+                    print(f"Error body: {e.body.decode() if isinstance(e.body, bytes) else e.body}")
+                if hasattr(e, 'headers'):
+                    print(f"Error headers: {e.headers}")
+                
+                return Response(
+                    {'detail': 'Failed to send reset email. Please try again later.'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+                
+        except User.DoesNotExist:
+            print(f"\nNo user found with email: {email}")
+            # For security, use the same message as success case
+            return Response({'detail': 'Password reset email sent if account exists.'}) 
+
+    @action(detail=False, methods=['POST'])
+    def reset_password(self, request):
+        print("\n=== Starting Password Reset Confirmation ===")
+        user_id = request.data.get('user_id')
+        token = request.data.get('token')
+        new_password = request.data.get('new_password')
+        
+        print(f"Processing reset confirmation for user_id: {user_id}")
+        
+        # Validate input
+        if not all([user_id, token, new_password]):
+            return Response(
+                {'detail': 'Missing required fields.'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            user = User.objects.get(id=user_id)
+            
+            # Verify token
+            if not default_token_generator.check_token(user, token):
+                print(f"Invalid or expired token for user_id: {user_id}")
+                return Response(
+                    {'detail': 'Invalid or expired reset link.'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Set new password
+            user.set_password(new_password)
+            user.save()
+            
+            print(f"Successfully reset password for user_id: {user_id}")
+            return Response({'detail': 'Password successfully reset.'})
+            
+        except User.DoesNotExist:
+            print(f"No user found with id: {user_id}")
+            return Response(
+                {'detail': 'Invalid reset link.'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            print(f"Unexpected error during password reset: {str(e)}")
+            return Response(
+                {'detail': 'An error occurred while resetting password.'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def test_email(request):
+    print("\n=== Starting Test Email ===")
+    api_key = os.getenv('SENDGRID_API_KEY')
+    print(f"API Key found: {'Yes' if api_key else 'No'}")
+    
+    if not api_key:
+        return Response({
+            'status': 'error',
+            'message': 'SendGrid API key not found'
+        }, status=500)
+
+    message = Mail(
+        from_email="Gift Sync <crwilson311@gmail.com>",
+        to_emails="crwilson311@gmail.com",
+        subject="Test Email from Gift Sync",
+        html_content='''
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #2c3e50; margin-bottom: 20px;">Test Email from Gift Sync</h2>
+                <p style="color: #34495e; line-height: 1.5;">
+                    This is a test email to verify your email configuration is working correctly.
+                </p>
+                <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+                <p style="color: #7f8c8d; font-size: 12px; text-align: center;">
+                    Best regards,<br>
+                    The Gift Sync Team
+                </p>
+            </div>
+        '''
+    )
+    
+    try:
+        print("\nAttempting to send email...")
+        sg = SendGridAPIClient(api_key)
+        response = sg.send(message)
+        
+        print("\nResponse Details:")
+        print(f"Status code: {response.status_code}")
+        print(f"Headers: {response.headers}")
+        print(f"Body: {response.body}")
+        
+        if response.status_code == 202:
+            print("\nEmail sent successfully!")
+            return Response({
+                'status': 'success',
+                'message': 'Test email sent successfully',
+                'status_code': response.status_code
+            })
+        else:
+            print(f"\nUnexpected status code: {response.status_code}")
+            return Response({
+                'status': 'error',
+                'message': f'Unexpected status code: {response.status_code}'
+            }, status=500)
+            
+    except Exception as e:
+        print("\nError Details:")
+        print(f"Error type: {type(e)}")
+        print(f"Error message: {str(e)}")
+        if hasattr(e, 'body'):
+            print(f"Error body: {e.body.decode() if isinstance(e.body, bytes) else e.body}")
+        if hasattr(e, 'headers'):
+            print(f"Error headers: {e.headers}")
+        
+        return Response({
+            'status': 'error',
+            'message': str(e)
+        }, status=500) 

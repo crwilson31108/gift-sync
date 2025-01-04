@@ -52,6 +52,15 @@
         >
           Sign in
         </v-btn>
+
+        <div class="mt-4 text-center">
+          <router-link 
+            to="/request-password-reset" 
+            class="text-blue-500 hover:underline"
+          >
+            Forgot your password?
+          </router-link>
+        </div>
       </v-form>
     </div>
   </div>
@@ -84,7 +93,7 @@ const handleImageError = (e: Event) => {
   img.style.display = 'none'
 }
 
-interface UserResponse {
+interface User {
   id: number
   username: string
   email: string
@@ -100,9 +109,9 @@ const handleSubmit = async () => {
 
   try {
     const response = await authService.login(form)
-    const user: UserResponse = {
+    const user: User = {
       ...response.user,
-      full_name: response.user.full_name || response.user.username
+      full_name: response.user.username
     }
     store.setCurrentUser(user)
     const redirectPath = localStorage.getItem('redirectPath') || '/'
@@ -125,7 +134,7 @@ const handleSubmit = async () => {
 onMounted(() => {
   const savedTheme = localStorage.getItem('theme')
   if (savedTheme) {
-    store.toggleTheme(savedTheme === 'dark')
+    store.setDarkTheme(savedTheme === 'dark')
   }
 })
 </script>

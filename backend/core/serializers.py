@@ -123,5 +123,5 @@ class WishListSerializer(serializers.ModelSerializer):
 class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
-        fields = '__all__'
+        fields = ('id', 'type', 'target_id', 'read', 'created_at')
         read_only_fields = ('id', 'created_at') 

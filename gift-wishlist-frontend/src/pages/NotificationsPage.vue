@@ -59,7 +59,7 @@
                 icon="mdi-check"
                 variant="text"
                 size="small"
-                @click="markAsRead(notification.id)"
+                @click="() => markAsRead(notification.id)"
               />
             </div>
           </div>
@@ -80,19 +80,11 @@
 import { computed } from 'vue'
 import { useAppStore } from '@/stores/useAppStore'
 import { format } from 'date-fns'
-
-interface Notification {
-  id: number
-  user: number
-  type: 'new_item' | 'purchased' | 'wishlist_created'
-  target_id: number
-  read: boolean
-  created_at: string
-}
+import type { Notification } from '@/types'
 
 const store = useAppStore()
 
-const notifications = computed(() => 
+const notifications = computed<Notification[]>(() => 
   [...store.notifications]
     .sort((a, b) => 
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
@@ -105,8 +97,7 @@ const unreadNotifications = computed(() =>
 
 const getUserName = (userId: number) => {
   if (userId === store.currentUser?.id) return 'You'
-  const user = store.users?.find(u => u.id === userId)
-  return user?.full_name || 'Unknown'
+  return store.currentUser?.full_name || 'Unknown'
 }
 
 const getUserInitials = (userId: number): string => {
@@ -153,11 +144,19 @@ const getNotificationLink = (notification: Notification) => {
   }
 }
 
-const markAsRead = (notificationId: number) => {
-  store.markNotificationRead(notificationId)
+const markAsRead = async (notificationId: number) => {
+  try {
+    await store.markNotificationRead(notificationId)
+  } catch (error) {
+    console.error('Failed to mark notification as read:', error)
+  }
 }
 
-const markAllRead = () => {
-  store.markAllNotificationsRead()
+const markAllRead = async () => {
+  try {
+    await store.markAllNotificationsRead()
+  } catch (error) {
+    console.error('Failed to mark all notifications as read:', error)
+  }
 }
 </script> 

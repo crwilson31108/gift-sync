@@ -23,7 +23,7 @@ export const authService = {
     const { access, refresh } = response.data
     
     // Store tokens
-    localStorage.setItem('token', access)
+    this.setToken(access)
     localStorage.setItem('refreshToken', refresh)
     
     // Get user data
@@ -37,11 +37,40 @@ export const authService = {
   },
 
   async logout() {
+    this.clearTokens()
+    delete api.defaults.headers.common['Authorization']
+  },
+
+  isAuthenticated(): boolean {
+    const token = this.getToken()
+    return Boolean(token && token.length > 0)
+  },
+
+  getToken(): string | null {
+    return localStorage.getItem('token')
+  },
+
+  setToken(token: string): void {
+    localStorage.setItem('token', token)
+    api.defaults.headers.common['Authorization'] = `Bearer ${token}`
+  },
+
+  clearTokens(): void {
     localStorage.removeItem('token')
     localStorage.removeItem('refreshToken')
   },
 
-  isAuthenticated(): boolean {
-    return !!localStorage.getItem('token')
+  async requestPasswordReset(email: string) {
+    const { data } = await api.post('/password-reset/request_reset/', { email })
+    return data
+  },
+
+  async resetPassword(userId: string, token: string, newPassword: string) {
+    const { data } = await api.post('/password-reset/reset_password/', {
+      user_id: userId,
+      token,
+      new_password: newPassword
+    })
+    return data
   }
 } 

@@ -11,13 +11,27 @@ import WishlistList from '../pages/WishlistList.vue'
 import WishlistDetail from '../pages/WishlistDetail.vue'
 import NotificationsPage from '@/pages/NotificationsPage.vue'
 import LoginPage from '@/pages/LoginPage.vue'
+import RequestPasswordResetPage from '@/pages/RequestPasswordResetPage.vue'
+import ResetPasswordPage from '@/pages/ResetPasswordPage.vue'
+
+// Define public routes
+const PUBLIC_ROUTES = [
+  '/login',
+  '/request-password-reset',
+  '/reset-password'
+]
+
+// Helper function to check if route is public
+const isPublicRoute = (path: string): boolean => {
+  return PUBLIC_ROUTES.some(route => path.startsWith(route))
+}
 
 const routes: RouteRecordRaw[] = [
   {
     path: '/login',
     name: 'login',
     component: LoginPage,
-    meta: { requiresAuth: false }
+    meta: { requiresAuth: false, public: true, layout: 'blank' }
   },
   {
     path: '/',
@@ -61,6 +75,18 @@ const routes: RouteRecordRaw[] = [
     component: NotificationsPage,
     meta: { requiresAuth: true }
   },
+  {
+    path: '/request-password-reset',
+    name: 'RequestPasswordReset',
+    component: RequestPasswordResetPage,
+    meta: { requiresAuth: false, public: true, layout: 'blank' }
+  },
+  {
+    path: '/reset-password/:userId/:token',
+    name: 'ResetPassword',
+    component: ResetPasswordPage,
+    meta: { requiresAuth: false, public: true, layout: 'blank' }
+  },
   // Catch all route for 404
   {
     path: '/:pathMatch(.*)*',
@@ -86,18 +112,22 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to, from, next) => {
-  const requiresAuth = to.matched.some(record => record.meta.requiresAuth !== false)
-  const isAuthenticated = authService.isAuthenticated()
+  // Always allow public routes
+  if (isPublicRoute(to.path)) {
+    next()
+    return
+  }
 
-  if (requiresAuth && !isAuthenticated) {
+  // For protected routes, check authentication
+  const isAuthenticated = authService.isAuthenticated()
+  if (!isAuthenticated) {
     // Store the intended destination
     localStorage.setItem('redirectPath', to.fullPath)
     next('/login')
-  } else if (to.path === '/login' && isAuthenticated) {
-    next('/')
-  } else {
-    next()
+    return
   }
+
+  next()
 })
 
 export default router

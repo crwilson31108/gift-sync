@@ -1,18 +1,20 @@
 <template>
-  <component :is="layout">
-    <router-view v-slot="{ Component }">
-      <transition 
-        name="fade"
-        mode="out-in"
-      >
-        <component :is="Component" class="w-full" />
-      </transition>
-    </router-view>
-  </component>
+  <v-app v-if="initialized">
+    <component :is="layout">
+      <router-view v-slot="{ Component }">
+        <transition 
+          name="fade"
+          mode="out-in"
+        >
+          <component :is="Component" class="w-full" />
+        </transition>
+      </router-view>
+    </component>
+  </v-app>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, watch } from 'vue'
+import { computed, onMounted, watch, ref } from 'vue'
 import { useAppStore } from '@/stores/useAppStore'
 import { useRoute, useRouter } from 'vue-router'
 import { authService } from '@/services/auth'
@@ -25,68 +27,83 @@ const store = useAppStore()
 const route = useRoute()
 const router = useRouter()
 const theme = useTheme()
+const initialized = ref(false)
+
+// Define public routes at the top level
+const publicRoutes = ['/login', '/request-password-reset', '/reset-password']
+const isPublicRoute = (path: string) => 
+  publicRoutes.some(route => path.startsWith(route))
 
 // Determine which layout to use
-const layout = computed(() => 
-  route.path === '/login' ? AuthLayout : MainLayout
-)
+const layout = computed(() => {
+  return isPublicRoute(route.path) ? AuthLayout : MainLayout
+})
 
-// Check authentication and theme on mount
-onMounted(async () => {
-  // Check authentication
-  const token = localStorage.getItem('token')
-  if (token) {
-    try {
-      // Set the token in axios defaults
-      api.defaults.headers.common['Authorization'] = `Bearer ${token}`
-      
-      // Get current user data
-      const response = await api.get('/users/me/')
-      const user = {
-        ...response.data,
-        full_name: response.data.full_name || response.data.username
+// Initialize app
+async function initializeApp() {
+  try {
+    // Initialize theme first
+    const savedTheme = localStorage.getItem('theme')
+    if (savedTheme) {
+      store.setDarkTheme(savedTheme === 'dark')
+    } else {
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+      store.setDarkTheme(prefersDark)
+    }
+
+    // Check if we're on a public route first
+    if (isPublicRoute(route.path)) {
+      initialized.value = true
+      return
+    }
+
+    // Handle authentication
+    const token = localStorage.getItem('token')
+    if (token) {
+      try {
+        api.defaults.headers.common['Authorization'] = `Bearer ${token}`
+        const response = await api.get('/users/me/')
+        const user = {
+          ...response.data,
+          full_name: response.data.full_name || response.data.username
+        }
+        store.setCurrentUser(user)
+        await store.fetchNotifications()
+      } catch (error) {
+        console.error('Auth error:', error)
+        localStorage.removeItem('token')
+        delete api.defaults.headers.common['Authorization']
+        store.setCurrentUser(null)
+        if (!isPublicRoute(route.path)) {
+          router.push('/login')
+        }
       }
-      
-      // Update this line to use setCurrentUser instead of setUser
-      store.setCurrentUser(user)
-      
-      // Fetch initial notifications
-      await store.fetchNotifications()
-    } catch (error) {
-      console.error('Auth error:', error)
-      // Clear token and redirect to login if auth fails
-      localStorage.removeItem('token')
+    } else if (!isPublicRoute(route.path)) {
       router.push('/login')
     }
-  } else if (route.path !== '/login') {
-    router.push('/login')
+  } catch (error) {
+    console.error('Initialization error:', error)
+  } finally {
+    initialized.value = true
   }
+}
 
-  // Initialize theme from storage
-  const savedTheme = localStorage.getItem('theme')
-  if (savedTheme) {
-    store.toggleTheme(savedTheme === 'dark')
-  } else {
-    // Use system preference as default
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-    store.toggleTheme(prefersDark)
-  }
+// Initialize on mount
+onMounted(() => {
+  initializeApp()
 })
 
 // Watch for theme changes
 watch(() => store.isDarkTheme, (isDark) => {
-  console.log('Theme watcher triggered:', isDark)
-  // Update HTML class for Tailwind
   document.documentElement.classList.toggle('dark', isDark)
-  console.log('Dark class:', document.documentElement.classList.contains('dark'))
-  
-  // Update Vuetify theme
   theme.global.name.value = isDark ? 'dark' : 'light'
-  console.log('Vuetify theme set to:', theme.global.name.value)
 }, { immediate: true })
 </script>
-
 <style>
+.loading-screen {
+  @apply min-h-screen flex items-center justify-center bg-light-bg dark:bg-dark-bg;
+}
+
 /* Ensure content doesn't overflow during transitions */
 .v-main {
   @apply overflow-x-hidden;
@@ -151,3 +168,4 @@ body,
   --v-theme-overlay-multiplier: 0.9;
 }
 </style>
+

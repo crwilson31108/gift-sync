@@ -8,7 +8,7 @@
       permanent
       :class="[
         store.isDarkTheme ? 'bg-dark-surface border-dark-border' : 'bg-light-surface border-light-border',
-        'border-r border-opacity-10'
+        'border-r border-opacity-10 h-screen'
       ]"
       :rail-width="80"
       width="280"
@@ -131,7 +131,7 @@
                 <v-list-item
                   prepend-icon="mdi-logout"
                   title="Sign Out"
-                  @click="store.logout"
+                  @click="handleLogout"
                 />
               </v-list>
             </v-menu>
@@ -465,8 +465,13 @@ watch(
 )
 
 async function handleLogout() {
-  await store.logout() // This should now handle everything including clearing the user
-  router.push('/login')
+  try {
+    await store.logout()
+    router.push('/login')
+  } catch (error) {
+    console.error('Logout failed:', error)
+    // Optionally add error handling/user notification here
+  }
 }
 </script> 
 
@@ -503,6 +508,23 @@ async function handleLogout() {
 
 .v-main {
   transition: background-color 0.3s ease;
+}
+
+/* Add these new styles */
+.v-navigation-drawer {
+  height: 100vh !important;
+  position: fixed !important;
+}
+
+.v-main {
+  margin-left: var(--v-navigation-drawer-width) !important;
+  min-height: 100vh !important;
+}
+
+@media (max-width: 960px) {
+  .v-main {
+    margin-left: 0 !important;
+  }
 }
 </style> 
 

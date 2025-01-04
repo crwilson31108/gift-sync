@@ -232,15 +232,15 @@ function formatDate(date: string) {
 .hero-section {
   background: linear-gradient(
     135deg,
-    rgb(var(--v-theme-primary)) 0%,
-    rgb(var(--v-theme-info)) 100%
+    rgb(205, 71, 71) 0%,
+    rgb(191, 64, 142) 100%
   );
   color: white;
   border-radius: 1.5rem;
   margin: -1rem -1rem 2rem -1rem;
   position: relative;
   overflow: hidden;
-  box-shadow: 0 10px 30px -10px rgba(var(--v-theme-primary), 0.3);
+  box-shadow: 0 10px 30px -10px rgba(205, 71, 71, 0.3);
 }
 
 .hero-content {
@@ -378,8 +378,8 @@ function formatDate(date: string) {
   .hero-section {
     background: linear-gradient(
       135deg,
-      rgba(var(--v-theme-primary), 0.9) 0%,
-      rgba(var(--v-theme-info), 0.9) 100%
+      rgba(205, 71, 71, 0.9) 0%,
+      rgba(191, 64, 142, 0.9) 100%
     );
     /* Darker shadow for better depth */
     box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);

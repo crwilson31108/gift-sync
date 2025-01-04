@@ -94,6 +94,17 @@
               @edit="openEditDialog"
               @delete="confirmDelete"
             >
+              <template #preview>
+                <div class="grid grid-cols-2 gap-1 mb-2">
+                  <img
+                    v-for="item in getTopPriorityItems(wishlist.items, 4)"
+                    :key="item.id"
+                    :src="getItemImage(item)"
+                    :alt="item.title"
+                    class="w-full h-24 object-cover rounded"
+                  />
+                </div>
+              </template>
               <template #actions>
                 <v-btn
                   variant="text"
@@ -121,6 +132,17 @@
               :key="wishlist.id"
               :wishlist="wishlist"
             >
+              <template #preview>
+                <div class="grid grid-cols-2 gap-1 mb-2">
+                  <img
+                    v-for="item in getTopPriorityItems(wishlist.items, 4)"
+                    :key="item.id"
+                    :src="getItemImage(item)"
+                    :alt="item.title"
+                    class="w-full h-24 object-cover rounded"
+                  />
+                </div>
+              </template>
               <template #actions>
                 <v-btn
                   variant="text"
@@ -386,6 +408,18 @@ async function handleDelete() {
 
 // Add this with other refs
 const activeTab = ref('my')
+
+function getTopPriorityItems(items: any[], count: number = 4) {
+  return (items || [])
+    .sort((a, b) => (a.priority || 0) - (b.priority || 0))
+    .slice(0, count)
+}
+
+function getItemImage(item: any): string {
+  if (item.image_url) return item.image_url
+  if (item.image) return item.image
+  return '/placeholder-gift.png'
+}
 </script>
 
 <style scoped>
