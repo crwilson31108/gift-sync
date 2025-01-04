@@ -238,9 +238,9 @@ SIMPLE_JWT = {
 }
 
 # Email and Frontend settings
-FRONTEND_URL = 'https://gift-sync.vercel.app'  # Production URL
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'https://gift-sync.vercel.app')  # Default to production URL
 if DEBUG:
-    FRONTEND_URL = 'http://localhost:5173'  # Development URL
+    FRONTEND_URL = 'http://localhost:5173'  # Override for development
 
 # SendGrid settings
 SENDGRID_API_KEY = os.getenv('SENDGRID_API_KEY')
