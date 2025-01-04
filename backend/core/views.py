@@ -51,6 +51,30 @@ class UserViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(users, many=True)
         return Response(serializer.data)
 
+    @action(detail=False, methods=['POST'])
+    def change_password(self, request):
+        user = request.user
+        current_password = request.data.get('current_password')
+        new_password = request.data.get('new_password')
+        
+        if not current_password or not new_password:
+            return Response(
+                {'detail': 'Both current and new password are required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if not user.check_password(current_password):
+            return Response(
+                {'detail': 'Current password is incorrect'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Set and save the new password
+        user.set_password(new_password)
+        user.save()
+        
+        return Response({'detail': 'Password changed successfully'})
+
 class FamilyViewSet(viewsets.ModelViewSet):
     serializer_class = FamilySerializer
     permission_classes = [IsAuthenticated]

@@ -87,6 +87,12 @@ const routes: RouteRecordRaw[] = [
     component: ResetPasswordPage,
     meta: { requiresAuth: false, public: true, layout: 'blank' }
   },
+  {
+    path: '/profile',
+    name: 'profile',
+    component: () => import('@/pages/ProfilePage.vue'),
+    meta: { requiresAuth: true }
+  },
   // Catch all route for 404
   {
     path: '/:pathMatch(.*)*',

@@ -122,11 +122,6 @@
                   title="Profile"
                   to="/profile"
                 />
-                <v-list-item
-                  prepend-icon="mdi-cog-outline"
-                  title="Settings"
-                  to="/settings"
-                />
                 <v-divider class="my-2" />
                 <v-list-item
                   prepend-icon="mdi-logout"
