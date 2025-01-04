@@ -33,6 +33,12 @@ export const useAppStore = defineStore('app', () => {
     currentUser.value = user
   }
 
+  async function updateCurrentUser(userData: Partial<User>) {
+    if (currentUser.value) {
+      currentUser.value = { ...currentUser.value, ...userData }
+    }
+  }
+
   function setDarkTheme(value: boolean) {
     isDarkTheme.value = value
     localStorage.setItem('theme', value ? 'dark' : 'light')
@@ -40,6 +46,15 @@ export const useAppStore = defineStore('app', () => {
 
   function toggleTheme() {
     setDarkTheme(!isDarkTheme.value)
+  }
+
+  // Add these functions for item order management
+  function setItemOrder(wishlistId: number, ids: number[]) {
+    itemOrder.value[wishlistId] = ids
+  }
+
+  function getItemOrder(wishlistId: number): number[] {
+    return itemOrder.value[wishlistId] || []
   }
 
   async function fetchNotifications() {
@@ -70,9 +85,12 @@ export const useAppStore = defineStore('app', () => {
     loading,
     itemOrder,
     setCurrentUser,
+    updateCurrentUser,
     setDarkTheme,
     toggleTheme,
     fetchNotifications,
-    logout
+    logout,
+    setItemOrder,
+    getItemOrder
   }
 })
