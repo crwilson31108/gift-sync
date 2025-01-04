@@ -2,8 +2,9 @@ export interface User {
   id: number
   username: string
   email: string
-  profile_picture?: string | null
-  bio?: string
+  profile_picture: string | null
+  bio: string
+  full_name: string
 }
 
 export interface Notification {

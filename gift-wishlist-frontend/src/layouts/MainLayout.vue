@@ -194,15 +194,15 @@
                   >
                     <template v-slot:prepend>
                       <v-avatar color="primary" size="32">
-                        <span class="text-xs">{{ getUserInitials(notification.userId) }}</span>
+                        <span class="text-xs">{{ getUserInitials(notification.user) }}</span>
                       </v-avatar>
                     </template>
                     <v-list-item-title class="text-sm">
-                      {{ getUserName(notification.userId) }}
+                      {{ getUserName(notification.user) }}
                       {{ getNotificationText(notification) }}
                     </v-list-item-title>
                     <v-list-item-subtitle class="text-xs">
-                      {{ formatDate(notification.createdAt) }}
+                      {{ formatDate(notification.created_at) }}
                     </v-list-item-subtitle>
                   </v-list-item>
                   <v-divider class="my-2" />
@@ -290,11 +290,16 @@
     </v-bottom-navigation>
 
     <!-- Main Content -->
-    <v-main :class="store.isDarkTheme ? 'bg-dark-bg' : 'bg-light-bg'">
-      <div :class="[
-        'max-w-7xl mx-auto px-4 py-6 min-h-screen pb-16 md:pb-6',
-        store.isDarkTheme ? 'bg-dark-bg' : 'bg-light-bg'
-      ]">
+    <v-main 
+      :class="store.isDarkTheme ? 'bg-dark-bg' : 'bg-light-bg'"
+      ref="mainContent"
+    >
+      <div 
+        :class="[
+          'max-w-7xl mx-auto px-4 py-6 min-h-screen pb-16 md:pb-6',
+          store.isDarkTheme ? 'bg-dark-bg' : 'bg-light-bg'
+        ]"
+      >
         <slot />
       </div>
     </v-main>
@@ -302,13 +307,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useAppStore } from '@/stores/useAppStore'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { format } from 'date-fns'
 
 const store = useAppStore()
 const route = useRoute()
+const router = useRouter()
 const currentRoute = ref(route.path)
 
 const showSidebar = ref(true)
@@ -336,22 +342,34 @@ const unreadNotificationsCount = computed(() =>
   store.notifications.filter(n => !n.read).length
 )
 
+// First, let's add proper typing for notifications
+interface Notification {
+  id: number
+  user: number // The user who triggered the notification
+  type: 'new_item' | 'purchased' | 'wishlist_created'
+  target_id: number
+  read: boolean
+  created_at: string
+}
+
 const recentNotifications = computed(() => 
   [...store.notifications]
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .slice(0, 5)
 )
 
 // Helper functions
 function getUserName(userId: number) {
+  if (userId === store.currentUser?.id) return 'You'
   const user = store.users?.find(u => u.id === userId)
-  return user?.name || 'Unknown'
+  return user?.full_name || 'Unknown'
 }
 
-function getUserInitials(userId: number) {
-  return getUserName(userId)
+function getUserInitials(userId: number): string {
+  const name = getUserName(userId)
+  return name
     .split(' ')
-    .map(n => n[0])
+    .map((n: string) => n[0])
     .join('')
     .toUpperCase()
 }
@@ -369,16 +387,13 @@ function getNotificationText(notification: any) {
   }
 }
 
-function getNotificationLink(notification: any) {
+function getNotificationLink(notification: Notification) {
   switch (notification.type) {
     case 'new_item':
     case 'wishlist_created':
-      return `/wishlists/${notification.targetId}`
+      return `/wishlists/${notification.target_id}`
     case 'purchased':
-      const wishlist = store.wishlists?.find(w => 
-        w.items.some(i => i.id === notification.targetId)
-      )
-      return `/wishlists/${wishlist?.id}`
+      return `/wishlists/${notification.target_id}`
     default:
       return '/'
   }
@@ -408,8 +423,14 @@ const breadcrumbs = computed(() => {
   return items
 })
 
-function formatDate(date: string) {
-  return format(new Date(date), 'MMM d, yyyy')
+function formatDate(date: string | null | undefined) {
+  if (!date) return ''
+  try {
+    return format(new Date(date), 'MMM d, yyyy')
+  } catch (error) {
+    console.error('Invalid date:', date)
+    return ''
+  }
 }
 
 function handleImageError(e: Event) {
@@ -424,6 +445,28 @@ const currentTheme = computed(() => store.isDarkTheme ? 'dark' : 'light')
 function handleThemeToggle() {
   console.log('Theme toggle clicked')
   store.toggleTheme()
+}
+
+// Add a watch on the route to scroll to top on route change
+watch(
+  () => route.path,
+  () => {
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    })
+    
+    // If using v-main, also reset its scroll position
+    const mainContent = document.querySelector('.v-main__wrap')
+    if (mainContent) {
+      mainContent.scrollTop = 0
+    }
+  }
+)
+
+async function handleLogout() {
+  await store.logout() // This should now handle everything including clearing the user
+  router.push('/login')
 }
 </script> 
 
@@ -461,4 +504,17 @@ function handleThemeToggle() {
 .v-main {
   transition: background-color 0.3s ease;
 }
+</style> 
+
+<style scoped>
+/* Add these styles */
+.v-main {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.v-main__wrap {
+  scroll-behavior: smooth;
+}
+  
 </style> 

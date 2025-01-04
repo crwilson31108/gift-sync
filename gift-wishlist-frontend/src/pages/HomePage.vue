@@ -48,31 +48,21 @@
 
     <!-- Stats Section -->
     <div v-if="currentUser" class="stats-grid mb-12">
-      <v-card class="stat-card">
+      <v-card 
+        v-for="(value, key) in statsDisplay" 
+        :key="key" 
+        class="stat-card"
+      >
         <v-card-text class="text-center">
-          <div class="text-h3 font-bold mb-2">{{ stats.totalWishlists }}</div>
-          <div class="text-subtitle-1">Your Wishlists</div>
-        </v-card-text>
-      </v-card>
-
-      <v-card class="stat-card">
-        <v-card-text class="text-center">
-          <div class="text-h3 font-bold mb-2">{{ stats.totalItems }}</div>
-          <div class="text-subtitle-1">Items Added</div>
-        </v-card-text>
-      </v-card>
-
-      <v-card class="stat-card">
-        <v-card-text class="text-center">
-          <div class="text-h3 font-bold mb-2">{{ stats.purchasedItems }}</div>
-          <div class="text-subtitle-1">Items Purchased</div>
-        </v-card-text>
-      </v-card>
-
-      <v-card class="stat-card">
-        <v-card-text class="text-center">
-          <div class="text-h3 font-bold mb-2">{{ stats.totalFamilies }}</div>
-          <div class="text-subtitle-1">Families Joined</div>
+          <div v-if="!statsLoading" class="text-h3 font-bold mb-2">
+            {{ value.value }}
+          </div>
+          <v-skeleton-loader
+            v-else
+            type="heading"
+            class="mb-2"
+          />
+          <div class="text-subtitle-1">{{ value.label }}</div>
         </v-card-text>
       </v-card>
     </div>
@@ -134,12 +124,40 @@ import { wishlistsService } from '@/services/wishlists'
 const store = useAppStore()
 const currentUser = computed(() => store.currentUser)
 
-const stats = ref({
+interface Stats {
+  totalWishlists: number
+  totalItems: number
+  purchasedItems: number
+  totalFamilies: number
+}
+
+const statsLoading = ref(true)
+
+const stats = ref<Stats>({
   totalWishlists: 0,
   totalItems: 0,
   purchasedItems: 0,
-  totalFamilies: 0,
+  totalFamilies: 0
 })
+
+const statsDisplay = computed(() => ({
+  wishlists: {
+    value: stats.value.totalWishlists,
+    label: 'Your Wishlists'
+  },
+  items: {
+    value: stats.value.totalItems,
+    label: 'Items Added'
+  },
+  purchased: {
+    value: stats.value.purchasedItems,
+    label: 'Items Purchased'
+  },
+  families: {
+    value: stats.value.totalFamilies,
+    label: 'Families Joined'
+  }
+}))
 
 const quickActions = [
   {
@@ -165,7 +183,16 @@ const quickActions = [
   }
 ]
 
-const recentActivity = ref([])
+interface Activity {
+  id: string
+  title: string
+  date: string
+  color: string
+  userId: number
+  wishlistOwnerId: number
+}
+
+const recentActivity = ref<Activity[]>([])
 
 onMounted(async () => {
   if (currentUser.value) {
@@ -176,18 +203,20 @@ onMounted(async () => {
 
 async function loadStats() {
   try {
-    // You'll need to add this endpoint to your API
+    statsLoading.value = true
     const response = await wishlistsService.getStats()
     stats.value = response
   } catch (error) {
     console.error('Failed to load stats:', error)
+  } finally {
+    statsLoading.value = false
   }
 }
 
 async function loadRecentActivity() {
   try {
-    // You'll need to add this endpoint to your API
     const response = await wishlistsService.getRecentActivity()
+    // No need to filter in frontend since backend handles it
     recentActivity.value = response
   } catch (error) {
     console.error('Failed to load recent activity:', error)
@@ -497,5 +526,17 @@ function formatDate(date: string) {
   .v-card {
     cursor: pointer;
   }
+}
+
+/* Skeleton loader customization */
+:deep(.v-skeleton-loader__heading) {
+  max-width: 100px;
+  margin: 0 auto;
+  height: 48px !important;
+}
+
+/* Dark theme adjustments */
+:deep(.v-theme--dark) .v-skeleton-loader__heading {
+  background: rgba(255, 255, 255, 0.1) !important;
 }
 </style>

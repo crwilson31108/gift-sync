@@ -44,11 +44,11 @@ class WishListItem(models.Model):
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     price = models.DecimalField(max_digits=10, decimal_places=2)
-    link = models.URLField(blank=True)
+    link = models.URLField(blank=True, max_length=2000)
     image = models.ImageField(upload_to='wishlist_items/', blank=True, null=True)
     image_url = models.URLField(blank=True, max_length=1000)
     size = models.CharField(max_length=10, choices=SIZES, default='Medium')
-    priority = models.IntegerField(default=3)  # We'll keep this but hide it
+    priority = models.IntegerField(default=3)
     is_purchased = models.BooleanField(default=False)
     purchased_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='purchased_items')
     purchased_at = models.DateTimeField(null=True, blank=True)
@@ -70,6 +70,9 @@ class WishListItem(models.Model):
     
     def __str__(self):
         return self.title
+
+    class Meta:
+        ordering = ['priority', '-created_at']
 
 class Notification(models.Model):
     TYPES = [

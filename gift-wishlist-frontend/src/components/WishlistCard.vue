@@ -38,7 +38,7 @@
     </v-card-title>
 
     <v-card-subtitle>
-      {{ wishlist.owner.username }}
+      {{ wishlist.owner.full_name }}
     </v-card-subtitle>
 
     <!-- Optional: Show a few item previews -->
@@ -62,10 +62,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { WishList, WishListItem } from '@/services/wishlists'
+import { useAppStore } from '@/stores/useAppStore'
 
 const props = defineProps<{
   wishlist: WishList
 }>()
+
+const store = useAppStore()
 
 // Find first item with an image
 const firstItemWithImage = computed(() => {
@@ -78,6 +81,10 @@ const previewItems = computed(() => {
 })
 
 function getItemCount(wishlist: WishList) {
+  // If user is the owner, just show total items
+  if (wishlist.owner.id === store.currentUser?.id) {
+    return `${wishlist.items.length} items`
+  }
   const total = wishlist.items.length
   const purchased = wishlist.items.filter(item => item.is_purchased).length
   return `${purchased}/${total} items`
@@ -86,6 +93,11 @@ function getItemCount(wishlist: WishList) {
 function getStatusColor(wishlist: WishList) {
   const total = wishlist.items.length
   if (total === 0) return 'grey'
+  
+  // If user is the owner, always return primary color
+  if (wishlist.owner.id === store.currentUser?.id) {
+    return 'primary'
+  }
   
   const purchased = wishlist.items.filter(item => item.is_purchased).length
   const percentage = (purchased / total) * 100

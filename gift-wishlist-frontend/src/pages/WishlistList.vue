@@ -30,7 +30,7 @@
 
     <!-- Empty State -->
     <div 
-      v-else-if="!wishlists.length"
+      v-else-if="!allWishlists.length"
       class="text-center py-12"
     >
       <v-icon
@@ -53,29 +53,93 @@
       </v-btn>
     </div>
 
-    <!-- Wishlists Grid -->
-    <div 
-      v-else 
-      class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
-    >
-      <WishlistCard
-        v-for="wishlist in wishlists"
-        :key="wishlist.id"
-        :wishlist="wishlist"
-        @edit="openEditDialog"
-        @delete="confirmDelete"
+    <div v-else>
+      <!-- Tabs -->
+      <v-tabs
+        v-model="activeTab"
+        color="primary"
+        class="mb-6"
       >
-        <template #actions>
-          <v-btn
-            variant="text"
+        <v-tab value="my" class="tab-with-badge">
+          <span class="tab-label">My Wishlists</span>
+          <v-badge
+            :content="myWishlists.length.toString()"
+            :model-value="myWishlists.length > 0"
             color="primary"
-            :to="`/wishlists/${wishlist.id}`"
+            class="ml-4"
+            location="end center"
+          />
+        </v-tab>
+        <v-tab value="others" class="tab-with-badge">
+          <span class="tab-label">Others' Wishlists</span>
+          <v-badge
+            :content="othersWishlists.length.toString()"
+            :model-value="othersWishlists.length > 0"
+            color="primary"
+            class="ml-4"
+            location="end center"
+          />
+        </v-tab>
+      </v-tabs>
+
+      <!-- Tab Content -->
+      <v-window v-model="activeTab">
+        <!-- My Wishlists Tab -->
+        <v-window-item value="my">
+          <div v-if="myWishlists.length" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <WishlistCard
+              v-for="wishlist in myWishlists"
+              :key="wishlist.id"
+              :wishlist="wishlist"
+              @edit="openEditDialog"
+              @delete="confirmDelete"
+            >
+              <template #actions>
+                <v-btn
+                  variant="text"
+                  color="primary"
+                  :to="`/wishlists/${wishlist.id}`"
+                >
+                  View
+                </v-btn>
+              </template>
+            </WishlistCard>
+          </div>
+          <div 
+            v-else 
+            class="text-center py-12 text-light-subtle dark:text-dark-subtle"
           >
-            View
-          </v-btn>
-          <!-- Other actions -->
-        </template>
-      </WishlistCard>
+            You haven't created any wishlists yet
+          </div>
+        </v-window-item>
+
+        <!-- Others' Wishlists Tab -->
+        <v-window-item value="others">
+          <div v-if="othersWishlists.length" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <WishlistCard
+              v-for="wishlist in othersWishlists"
+              :key="wishlist.id"
+              :wishlist="wishlist"
+            >
+              <template #actions>
+                <v-btn
+                  variant="text"
+                  color="primary"
+                  :to="`/wishlists/${wishlist.id}`"
+                >
+                  View
+                </v-btn>
+              </template>
+            </WishlistCard>
+          </div>
+          <div 
+            v-else 
+            class="text-center py-12 text-light-subtle dark:text-dark-subtle"
+          >
+            No wishlists from other users yet
+          </div>
+        </v-window-item>
+      </v-window>
     </div>
 
     <!-- Create/Edit Dialog -->
@@ -162,17 +226,32 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { useAppStore } from '@/stores/useAppStore'
 import { wishlistsService, type WishList } from '@/services/wishlists'
 import { familiesService, type Family } from '@/services/families'
 import WishlistCard from '@/components/WishlistCard.vue'
 
+const store = useAppStore()
 const route = useRoute()
-const wishlists = ref<WishList[]>([])
+const allWishlists = ref<WishList[]>([])
 const families = ref<Family[]>([])
 const loading = ref(false)
 const error = ref('')
+
+// Computed properties for filtered wishlists
+const myWishlists = computed(() => 
+  allWishlists.value.filter(wishlist => 
+    wishlist.owner.id === store.currentUser?.id
+  )
+)
+
+const othersWishlists = computed(() => 
+  allWishlists.value.filter(wishlist => 
+    wishlist.owner.id !== store.currentUser?.id
+  )
+)
 
 const dialog = ref({
   show: false,
@@ -206,7 +285,7 @@ onMounted(async () => {
       }),
       familiesService.getFamilies()
     ])
-    wishlists.value = wishlistsData
+    allWishlists.value = wishlistsData
     families.value = familiesData
   } catch (err) {
     error.value = 'Failed to load wishlists'
@@ -272,7 +351,7 @@ async function handleSubmit() {
     }
 
     // Refresh wishlists list
-    wishlists.value = await wishlistsService.getWishlists({
+    allWishlists.value = await wishlistsService.getWishlists({
       family: Number(route.query.family) || undefined,
       owner: Number(route.query.owner) || undefined
     })
@@ -295,7 +374,7 @@ async function handleDelete() {
   try {
     loading.value = true
     await wishlistsService.deleteWishlist(deleteDialog.value.wishlist.id)
-    wishlists.value = wishlists.value.filter(w => w.id !== deleteDialog.value.wishlist?.id)
+    allWishlists.value = allWishlists.value.filter(w => w.id !== deleteDialog.value.wishlist?.id)
     deleteDialog.value.show = false
   } catch (err) {
     error.value = 'Failed to delete wishlist'
@@ -304,4 +383,43 @@ async function handleDelete() {
     loading.value = false
   }
 }
+
+// Add this with other refs
+const activeTab = ref('my')
 </script>
+
+<style scoped>
+/* Optional: Custom styling for the tabs */
+:deep(.v-tabs) {
+  border-bottom: 1px solid rgba(var(--v-border-color), 0.12);
+}
+
+:deep(.v-tab) {
+  text-transform: none;
+  font-weight: 500;
+  padding: 0 24px;
+  min-width: 180px;
+}
+
+:deep(.tab-with-badge) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+:deep(.tab-label) {
+  margin-right: 8px;
+}
+
+:deep(.v-tab--selected) {
+  font-weight: 600;
+}
+
+:deep(.v-badge__badge) {
+  font-size: 12px;
+  min-width: 20px;
+  height: 20px;
+  margin-left: 4px;
+}
+</style>

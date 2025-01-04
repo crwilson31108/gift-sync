@@ -5,10 +5,11 @@ export interface WishListItem {
   id: number
   title: string
   description: string
-  price: number
-  link?: string
-  image_url?: string
-  size: 'Small' | 'Medium' | 'Large'
+  price: string
+  link: string
+  image: string | null    // For uploaded images
+  image_url: string       // For scraped images
+  size: string
   priority: number
   is_purchased: boolean
   purchased_by?: User
@@ -119,6 +120,17 @@ export const wishlistsService = {
 
   async getRecentActivity() {
     const response = await api.get('/wishlists/recent_activity/')
+    return response.data
+  },
+
+  async updateItemsOrder(wishlistId: number, itemIds: number[]) {
+    const response = await api.post(
+      `/wishlist-items/reorder_items/`,
+      { 
+        wishlist_id: wishlistId,
+        item_ids: itemIds 
+      }
+    )
     return response.data
   }
 } 

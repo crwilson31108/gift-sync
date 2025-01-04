@@ -22,6 +22,15 @@
         </v-btn>
         <v-btn
           v-if="isOwner"
+          :color="isDragMode ? 'primary' : undefined"
+          :variant="isDragMode ? 'flat' : 'outlined'"
+          prepend-icon="mdi-drag"
+          @click="toggleDragMode"
+        >
+          {{ isDragMode ? 'Exit Arrange Mode' : 'Arrange Items' }}
+        </v-btn>
+        <v-btn
+          v-if="isOwner"
           color="primary"
           variant="outlined"
           prepend-icon="mdi-pencil"
@@ -39,271 +48,516 @@
 
     <!-- Error State -->
     <v-alert
-      v-else-if="error"
+      v-if="error"
       type="error"
       class="mb-4"
     >
       {{ error }}
     </v-alert>
 
-    <!-- Empty State -->
-    <div 
-      v-else-if="!wishlist?.items.length"
-      class="text-center py-12"
-    >
-      <v-icon
-        icon="mdi-gift-outline"
-        size="64"
-        class="text-light-subtle dark:text-dark-subtle mb-4"
-      />
-      <h3 class="text-xl font-medium text-light-text dark:text-dark-text mb-2">
-        No Items Yet
-      </h3>
-      <p class="text-light-subtle dark:text-dark-subtle mb-4">
-        {{ isOwner ? 'Add your first item to your wishlist' : 'This wishlist is empty' }}
-      </p>
-      <v-btn
-        v-if="isOwner"
-        color="primary"
-        prepend-icon="mdi-plus"
-        @click="openCreateItemDialog"
-      >
-        Add Item
-      </v-btn>
+    <!-- Filters -->
+    <div v-if="!loading && wishlist" class="mb-6">
+      <v-expand-transition>
+        <div v-show="showFilters">
+          <!-- New Filter Layout -->
+          <v-card class="mb-4 pa-4">
+            <!-- Search & Size Filters -->
+            <div class="flex flex-wrap items-center gap-4 mb-6">
+              <v-text-field
+                v-model="filters.search"
+                label="Search items"
+                prepend-inner-icon="mdi-magnify"
+                density="comfortable"
+                hide-details
+                clearable
+                style="max-width: 220px;"
+              />
+              <v-select
+                v-model="filters.size"
+                :items="['All', 'Stocking', 'Small', 'Medium', 'Large']"
+                label="Size"
+                density="comfortable"
+                hide-details
+                style="max-width: 200px;"
+              />
+              <v-select
+                v-if="!isOwner"
+                v-model="filters.purchaseStatus"
+                :items="[
+                  { title: 'All Items', value: 'all' },
+                  { title: 'Available', value: 'available' },
+                  { title: 'Purchased', value: 'purchased' }
+                ]"
+                item-title="title"
+                item-value="value"
+                label="Status"
+                density="comfortable"
+                hide-details
+                style="max-width: 200px;"
+              />
+            </div>
+
+            <!-- Price Range Controls -->
+            <div>
+              <div class="flex flex-wrap items-center gap-4 mb-4">
+                <div class="price-input-container">
+                  <v-text-field
+                    v-model="minPriceInput"
+                    label="Min Price"
+                    type="text"
+                    prefix="$"
+                    class="price-input"
+                    style="width: 180px; height: 64px;"
+                    density="comfortable"
+                    hide-details
+                    @input="handleMinPriceInput"
+                  >
+                    <template v-slot:append>
+                      <div class="price-controls">
+                        <v-btn
+                          icon="mdi-chevron-up"
+                          size="x-small"
+                          variant="text"
+                          density="comfortable"
+                          @click="adjustPrice('min', 1)"
+                        />
+                        <v-btn
+                          icon="mdi-chevron-down"
+                          size="x-small"
+                          variant="text"
+                          density="comfortable"
+                          @click="adjustPrice('min', -1)"
+                        />
+                      </div>
+                    </template>
+                  </v-text-field>
+                </div>
+
+                <span class="text-light-subtle dark:text-dark-subtle">to</span>
+
+                <div class="price-input-container">
+                  <v-text-field
+                    v-model="maxPriceInput"
+                    label="Max Price"
+                    type="text"
+                    prefix="$"
+                    class="price-input"
+                    style="width: 180px; height: 64px;"
+                    density="comfortable"
+                    hide-details
+                    @input="handleMaxPriceInput"
+                  >
+                    <template v-slot:append>
+                      <div class="price-controls">
+                        <v-btn
+                          icon="mdi-chevron-up"
+                          size="x-small"
+                          variant="text"
+                          density="comfortable"
+                          @click="adjustPrice('max', 1)"
+                        />
+                        <v-btn
+                          icon="mdi-chevron-down"
+                          size="x-small"
+                          variant="text"
+                          density="comfortable"
+                          @click="adjustPrice('max', -1)"
+                        />
+                      </div>
+                    </template>
+                  </v-text-field>
+                </div>
+
+                <v-btn
+                  v-if="isPriceRangeActive"
+                  icon="mdi-refresh"
+                  size="small"
+                  variant="text"
+                  @click="resetPriceRange"
+                  :disabled="loading"
+                />
+              </div>
+            </div>
+          </v-card>
+        </div>
+      </v-expand-transition>
+
+      <!-- Filter Toggle Button -->
+      <div class="flex items-center gap-2">
+        <v-btn
+          variant="text"
+          :prepend-icon="showFilters ? 'mdi-filter-off' : 'mdi-filter'"
+          @click="showFilters = !showFilters"
+          size="small"
+        >
+          {{ showFilters ? 'Hide Filters' : 'Show Filters' }}
+          <template v-if="!showFilters && activeFiltersCount > 0">
+            ({{ activeFiltersCount }})
+          </template>
+        </v-btn>
+        <v-chip
+          v-if="activeFiltersCount > 0"
+          size="small"
+          color="primary"
+          variant="outlined"
+          closable
+          @click:close="resetFilters"
+        >
+          Clear All Filters
+        </v-chip>
+      </div>
     </div>
 
-    <!-- Items Grid -->
-    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      <v-card
-        v-for="item in wishlist?.items"
+    <!-- Replace the existing masonry grid with this conditional rendering -->
+    <draggable
+      v-if="isOwner && isDragMode"
+      v-model="dragItems"
+      class="drag-grid"
+      @end="handleDragEnd"
+      item-key="id"
+      handle=".drag-handle"
+      :animation="200"
+      ghost-class="ghost-item"
+    >
+      <template #item="{ element: item }">
+        <div class="drag-item">
+          <div class="drag-handle">
+            <v-icon icon="mdi-drag" />
+          </div>
+          <div class="drag-content">
+            <!-- Image -->
+            <div class="image-container">
+              <v-img
+                v-if="item.image_url || item.image"
+                :src="item.image_url || item.image"
+                height="200"
+                cover
+              />
+            </div>
+            <!-- Item Details -->
+            <div class="item-details">
+              <h3 class="title">{{ item.title }}</h3>
+              <p class="price">${{ item.price }}</p>
+            </div>
+          </div>
+        </div>
+      </template>
+    </draggable>
+
+    <!-- Original masonry grid for non-drag mode -->
+    <div v-else class="masonry-grid">
+      <div
+        v-for="item in filteredItems"
         :key="item.id"
-        :class="[
-          'bg-light-surface dark:bg-dark-surface',
-          { 'opacity-50': item.is_purchased && !isOwner }
-        ]"
+        class="masonry-item"
+        :class="{ 'opacity-50': !isOwner && item.is_purchased }"
       >
         <v-img
-          v-if="item.image_url"
-          :src="item.image_url"
-          height="200"
-          cover
+          v-if="item.image_url || item.image"
+          :src="item.image_url || item.image"
+          :aspect-ratio="undefined"
           class="bg-light-subtle dark:bg-dark-subtle"
-        />
+          @load="onImageLoad($event, item.id)"
+        >
+          <template v-slot:placeholder>
+            <div class="d-flex align-center justify-center fill-height">
+              <v-progress-circular indeterminate color="primary" />
+            </div>
+          </template>
+        </v-img>
 
-        <v-card-title class="flex justify-between items-center">
-          <span>{{ item.title }}</span>
-          <v-chip
-            :color="item.is_purchased ? 'success' : getPriorityColor(item.priority)"
-            size="small"
-          >
-            {{ item.is_purchased ? 'Purchased' : `Priority ${item.priority}` }}
-          </v-chip>
-        </v-card-title>
+        <div class="card-content bg-light-surface dark:bg-dark-surface">
+          <div class="card-header">
+            <span class="title">{{ item.title }}</span>
+            <v-chip
+              v-if="!isOwner && item.is_purchased"
+              color="success"
+              size="small"
+            >
+              Purchased
+            </v-chip>
+          </div>
 
-        <v-card-text>
-          <p class="text-light-text dark:text-dark-text mb-2">
+          <p class="description text-light-text dark:text-dark-text">
             {{ item.description }}
           </p>
-          <div class="flex items-center justify-between text-sm text-light-subtle dark:text-dark-subtle">
+
+          <div class="meta-info">
             <span>${{ item.price }}</span>
             <span>Size: {{ item.size }}</span>
           </div>
-          
-          <div v-if="item.is_purchased" class="mt-2 text-sm text-success">
-            Purchased by {{ item.purchased_by?.username }}
+
+          <div v-if="!isOwner && item.is_purchased" class="purchased-info">
+            Purchased by {{ item.purchased_by?.full_name }}
           </div>
-        </v-card-text>
 
-        <v-divider />
-
-        <v-card-actions>
-          <v-btn
-            v-if="item.link"
-            variant="text"
-            prepend-icon="mdi-link"
-            :href="item.link"
-            target="_blank"
-          >
-            View Item
-          </v-btn>
-          <v-spacer />
-          <template v-if="!isOwner">
+          <div class="actions">
             <v-btn
-              v-if="!item.is_purchased"
-              color="success"
+              v-if="item.link"
               variant="text"
-              prepend-icon="mdi-cart"
-              @click="handlePurchase(item)"
+              prepend-icon="mdi-link"
+              :href="item.link"
+              target="_blank"
             >
-              Purchase
+              View Item
             </v-btn>
-            <v-btn
-              v-else-if="item.purchased_by?.id === currentUser?.id"
-              color="error"
-              variant="text"
-              prepend-icon="mdi-cart-off"
-              @click="handleUnpurchase(item)"
-            >
-              Unpurchase
-            </v-btn>
-          </template>
-          <template v-else>
-            <v-btn
-              icon="mdi-pencil"
-              variant="text"
-              @click="openEditItemDialog(item)"
-            />
-            <v-btn
-              icon="mdi-delete"
-              variant="text"
-              color="error"
-              @click="confirmDeleteItem(item)"
-            />
-          </template>
-        </v-card-actions>
-      </v-card>
+            <v-spacer />
+            <template v-if="isOwner">
+              <v-btn
+                icon="mdi-pencil"
+                variant="text"
+                size="small"
+                @click="openEditItemDialog(item)"
+              />
+              <v-btn
+                icon="mdi-delete"
+                variant="text"
+                size="small"
+                color="error"
+                @click="confirmDeleteItem(item)"
+              />
+            </template>
+            <template v-else>
+              <v-btn
+                v-if="!item.is_purchased"
+                prepend-icon="mdi-gift"
+                color="success"
+                @click="handlePurchase(item)"
+              >
+                Mark as Purchased
+              </v-btn>
+              <v-btn
+                v-else
+                prepend-icon="mdi-gift-off"
+                color="error"
+                variant="outlined"
+                @click="handleUnpurchase(item)"
+              >
+                Undo Purchase
+              </v-btn>
+            </template>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <!-- Create/Edit Item Dialog -->
-    <v-dialog
-      v-model="itemDialog.show"
-      max-width="600"
-    >
-      <v-card>
-        <v-card-title>
+    <!-- Dialogs -->
+    <!-- ... item dialog, delete dialog, etc ... -->
+
+    <!-- Item Dialog -->
+    <v-dialog v-model="itemDialog.show" max-width="600px">
+      <v-card class="d-flex flex-column" style="max-height: 90vh;">
+        <v-card-title class="py-4 px-6">
           {{ itemDialog.mode === 'create' ? 'Add Item' : 'Edit Item' }}
         </v-card-title>
 
-        <v-card-text>
-          <v-form @submit.prevent="handleItemSubmit" ref="form">
-            <v-text-field
-              v-model="itemForm.link"
-              label="Link to Item*" 
-              type="url"
-              :loading="scraping"
-              :error-messages="itemErrors.link"
-              required
-              @keyup.enter="scrapeUrl"
-            >
-              <template v-slot:append>
-                <v-btn
-                  icon
-                  :loading="scraping"
-                  @click="scrapeUrl"
-                  :disabled="!itemForm.link"
-                >
-                  <v-icon>mdi-magnify</v-icon>
-                </v-btn>
-              </template>
-            </v-text-field>
-
-            <!-- Other form fields should be disabled until scraping is done -->
-            <v-text-field
-              v-model="itemForm.title"
-              label="Item Name*"
-              required
-              :error-messages="itemErrors.title"
-              :disabled="!hasScrapedData"
-            />
-            
-            <v-textarea
-              v-model="itemForm.description"
-              label="Description"
-              rows="3"
-              :disabled="!hasScrapedData"
-            />
-
-            <div class="grid grid-cols-1">
+        <v-card-text class="flex-grow-1 overflow-y-auto px-6">
+          <v-form @submit.prevent="handleItemSubmit">
+            <!-- URL Scraping Section -->
+            <div v-if="itemDialog.mode === 'create'" class="mb-4">
               <v-text-field
-                v-model.number="itemForm.price"
+                v-model="itemForm.link"
+                label="Provide a link to scrape"
+                :error-messages="itemErrors.link"
+                @input="itemErrors.link = ''"
+                :disabled="scraping"
+              />
+              <v-btn
+                color="primary"
+                @click="scrapeUrl"
+                :loading="scraping"
+                class="mt-2"
+              >
+                Fill Auto-Magically
+              </v-btn>
+            </div>
+
+            <!-- Main Form Fields -->
+            <div class="space-y-4">
+              <v-text-field
+                v-model="itemForm.title"
+                label="Title"
+                required
+                :error-messages="itemErrors.title"
+                @input="itemErrors.title = ''"
+                :disabled="!hasScrapedData && itemDialog.mode === 'create'"
+              />
+
+              <v-textarea
+                v-model="itemForm.description"
+                label="Description"
+                :error-messages="itemErrors.description"
+                @input="itemErrors.description = ''"
+                :disabled="!hasScrapedData && itemDialog.mode === 'create'"
+              />
+
+              <v-text-field
+                v-model="itemForm.price"
                 label="Price"
                 type="number"
                 required
                 prefix="$"
                 :error-messages="itemErrors.price"
-                :disabled="!hasScrapedData"
-                @input="updateSizeFromPrice"
+                @input="itemErrors.price = ''"
+                :disabled="!hasScrapedData && itemDialog.mode === 'create'"
               />
-            </div>
 
-            <div v-if="allImages.length" class="mt-4">
-              <label class="text-subtitle-1 mb-2 d-block">Select Image</label>
-              <div class="image-grid">
-                <div 
-                  v-for="(image, index) in allImages" 
-                  :key="index"
-                  class="image-item"
-                  :class="{ 'selected': image === itemForm.image_url }"
-                  @click="itemForm.image_url = image"
-                >
-                  <v-img
-                    :src="image"
-                    aspect-ratio="1"
-                    cover
-                    class="rounded"
-                    :class="{ 'v-img--selected': image === itemForm.image_url }"
-                  >
-                    <template v-slot:placeholder>
-                      <div class="d-flex align-center justify-center fill-height">
-                        <v-progress-circular
-                          indeterminate
-                          color="primary"
-                        ></v-progress-circular>
-                      </div>
-                    </template>
-                  </v-img>
+              <v-text-field
+                v-if="itemDialog.mode === 'edit'"
+                v-model="itemForm.link"
+                label="Link"
+                :error-messages="itemErrors.link"
+                @input="itemErrors.link = ''"
+              />
+
+              <v-select
+                v-model="itemForm.size"
+                :items="['Stocking', 'Small', 'Medium', 'Large']"
+                label="Size"
+                :disabled="!hasScrapedData && itemDialog.mode === 'create'"
+              />
+
+              <!-- Image Upload Section -->
+              <div class="mt-4">
+                <label class="text-subtitle-1 mb-2 d-block">Item Image</label>
+                
+                <!-- Image Upload -->
+                <div class="mb-4">
+                  <v-file-input
+                    v-model="itemForm.image"
+                    accept="image/*"
+                    label="Upload Image"
+                    prepend-icon="mdi-camera"
+                    :error-messages="itemErrors.image"
+                    @change="handleImageUpload"
+                    :disabled="!hasScrapedData && itemDialog.mode === 'create'"
+                  />
+                </div>
+
+                <!-- Scraped Images -->
+                <div v-if="allImages.length">
+                  <label class="text-subtitle-1 mb-2 d-block">Or select from scraped images:</label>
+                  <div class="scraped-images-grid">
+                    <div 
+                      v-for="(image, index) in filteredImages" 
+                      :key="index"
+                      class="scraped-image-item"
+                      :class="{ 'selected': image === itemForm.image_url }"
+                      @click="selectScrapedImage(image)"
+                    >
+                      <v-img
+                        :src="image"
+                        :aspect-ratio="1"
+                        cover
+                        class="rounded"
+                        :class="{ 'v-img--selected': image === itemForm.image_url }"
+                        @load="checkImageQuality($event, image)"
+                      >
+                        <template v-slot:placeholder>
+                          <div class="d-flex align-center justify-center fill-height">
+                            <v-progress-circular indeterminate color="primary" />
+                          </div>
+                        </template>
+                      </v-img>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Preview Selected Image -->
+                <div v-if="selectedImagePreview" class="mt-4">
+                  <label class="text-subtitle-1 mb-2 d-block">Selected Image Preview:</label>
+                  <div class="selected-image-preview">
+                    <v-img
+                      :src="selectedImagePreview"
+                      height="200"
+                      cover
+                      class="rounded"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
           </v-form>
         </v-card-text>
 
-        <v-card-actions>
+        <v-divider></v-divider>
+        
+        <v-card-actions class="py-3 px-6">
           <v-spacer />
           <v-btn
-            variant="text"
-            @click="itemDialog.show = false"
+            color="primary"
+            @click="handleItemSubmit"
+            :loading="loading"
+            min-width="100"
           >
-            Cancel
+            {{ itemDialog.mode === 'create' ? 'Add' : 'Save' }}
           </v-btn>
           <v-btn
-            color="primary"
-            :loading="loading"
-            :disabled="!hasScrapedData"
-            @click="handleItemSubmit"
+            color="error"
+            variant="text"
+            @click="itemDialog.show = false"
+            min-width="100"
+            class="ml-3"
           >
-            {{ itemDialog.mode === 'create' ? 'Add Item' : 'Save Changes' }}
+            Cancel
           </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
-    <!-- Delete Item Confirmation -->
-    <v-dialog
-      v-model="deleteItemDialog.show"
-      max-width="400"
-    >
+    <!-- Edit Wishlist Dialog -->
+    <v-dialog v-model="editDialog.show" max-width="500px">
       <v-card>
-        <v-card-title class="text-error">
-          Delete Item
-        </v-card-title>
+        <v-card-title>Edit Wishlist</v-card-title>
         <v-card-text>
-          Are you sure you want to delete "{{ deleteItemDialog.item?.title }}"?
+          <v-text-field
+            v-model="editDialog.name"
+            label="Wishlist Name"
+            :error-messages="editDialog.error"
+            @input="editDialog.error = ''"
+          />
         </v-card-text>
         <v-card-actions>
           <v-spacer />
+          <v-btn
+            color="primary"
+            @click="handleEditSubmit"
+            :loading="loading"
+          >
+            Save
+          </v-btn>
+          <v-btn
+            color="error"
+            variant="text"
+            @click="editDialog.show = false"
+          >
+            Cancel
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- Delete Item Dialog -->
+    <v-dialog v-model="deleteItemDialog.show" max-width="400px">
+      <v-card>
+        <v-card-title>Delete Item</v-card-title>
+        <v-card-text>
+          Are you sure you want to delete this item?
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn
+            color="error"
+            @click="handleDeleteItem"
+            :loading="loading"
+          >
+            Delete
+          </v-btn>
           <v-btn
             variant="text"
             @click="deleteItemDialog.show = false"
           >
             Cancel
-          </v-btn>
-          <v-btn
-            color="error"
-            :loading="loading"
-            @click="handleDeleteItem"
-          >
-            Delete
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -312,11 +566,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { wishlistsService, type WishList, type WishListItem } from '@/services/wishlists'
 import { useAppStore } from '@/stores/useAppStore'
 import { format } from 'date-fns'
+import draggable from 'vuedraggable'
 
 const route = useRoute()
 const router = useRouter()
@@ -366,6 +621,132 @@ const scraping = ref(false)
 const allImages = ref([])
 const hasScrapedData = ref(false)
 
+const showFilters = ref(false)
+const filters = ref({
+  search: '',
+  priceRange: [0, 1000] as [number, number],
+  size: 'All',
+  purchaseStatus: 'all'
+})
+
+const priceRange = computed(() => {
+  if (!wishlist.value?.items.length) return { min: 0, max: 0 }
+  const prices = wishlist.value.items
+    .map(item => parseFloat(item.price) || 0)
+    .filter(price => !isNaN(price))
+  return {
+    min: Math.min(...prices, 0),
+    max: Math.max(...prices)
+  }
+})
+
+const priceRangeFormatted = computed(() => ({
+  min: filters.value.priceRange[0].toFixed(2),
+  max: filters.value.priceRange[1].toFixed(2)
+}))
+
+// Add these new refs
+const minPriceInput = ref('')
+const maxPriceInput = ref('')
+
+// Update price range watchers and handlers
+function handleMinPriceInput(event: Event) {
+  const input = event.target as HTMLInputElement
+  const value = input.value.replace(/[^\d.]/g, '')
+  const newMin = Math.max(Number(value) || 0, 0)
+  const newMax = Math.max(filters.value.priceRange[1], newMin)
+  filters.value.priceRange = [newMin, newMax]
+  minPriceInput.value = newMin.toString()
+}
+
+function handleMaxPriceInput(event: Event) {
+  const input = event.target as HTMLInputElement
+  const value = input.value.replace(/[^\d.]/g, '')
+  const newMax = Math.min(Number(value) || 0, priceRange.value.max)
+  const newMin = Math.min(filters.value.priceRange[0], newMax)
+  filters.value.priceRange = [newMin, newMax]
+  maxPriceInput.value = newMax.toString()
+}
+
+function resetPriceRange() {
+  filters.value.priceRange = [0, priceRange.value.max]
+  minPriceInput.value = '0'
+  maxPriceInput.value = priceRange.value.max.toString()
+}
+
+// Update the watch handler for wishlist
+watch(() => wishlist.value, (newWishlist) => {
+  if (newWishlist?.items.length) {
+    const prices = newWishlist.items
+      .map(item => parseFloat(item.price) || 0)
+      .filter(price => !isNaN(price))
+    const maxPrice = Math.max(...prices, 0)
+    filters.value.priceRange = [0, maxPrice]
+    minPriceInput.value = '0'
+    maxPriceInput.value = maxPrice.toString()
+  } else {
+    filters.value.priceRange = [0, 0]
+    minPriceInput.value = '0'
+    maxPriceInput.value = '0'
+  }
+}, { immediate: true })
+
+// Remove any slider-specific watchers and keep only this one
+watch(() => filters.value.priceRange, () => {
+  minPriceInput.value = filters.value.priceRange[0].toString()
+  maxPriceInput.value = filters.value.priceRange[1].toString()
+}, { deep: true })
+
+const filteredItems = computed(() => {
+  if (!wishlist.value?.items) return []
+  
+  return wishlist.value.items.filter(item => {
+    // Search filter
+    const searchMatch = !filters.value.search || 
+      item.title.toLowerCase().includes(filters.value.search.toLowerCase()) ||
+      item.description?.toLowerCase().includes(filters.value.search.toLowerCase())
+
+    // Price range filter
+    const price = Number(item.price) || 0
+    const priceMatch = price >= filters.value.priceRange[0] && 
+      price <= filters.value.priceRange[1]
+
+    // Size filter
+    const sizeMatch = filters.value.size === 'All' || 
+      item.size === filters.value.size
+
+    // Purchase status filter (for non-owners)
+    let purchaseMatch = true
+    if (!isOwner.value) {
+      if (filters.value.purchaseStatus === 'available') {
+        purchaseMatch = !item.is_purchased
+      } else if (filters.value.purchaseStatus === 'purchased') {
+        purchaseMatch = item.is_purchased
+      }
+    }
+
+    return searchMatch && priceMatch && sizeMatch && purchaseMatch
+  })
+})
+
+const imageHeights = ref<Record<number, number>>({})
+
+function onImageLoad(event: Event, itemId: number) {
+  const img = event.target as HTMLImageElement
+  if (img) {
+    const aspectRatio = img.naturalWidth / img.naturalHeight
+    imageHeights.value[itemId] = aspectRatio
+    
+    // Apply the span class based on actual image height
+    const card = img.closest('.masonry-item') as HTMLElement
+    if (card) {
+      const baseSpan = 35 // Base span unit (adjust as needed)
+      const heightSpan = Math.ceil((img.naturalHeight / img.naturalWidth) * baseSpan)
+      card.style.gridRowEnd = `span ${heightSpan}`
+    }
+  }
+}
+
 onMounted(async () => {
   await loadWishlist()
 })
@@ -374,7 +755,19 @@ async function loadWishlist() {
   try {
     loading.value = true
     const wishlistId = Number(route.params.id)
-    wishlist.value = await wishlistsService.getWishlist(wishlistId)
+    const data = await wishlistsService.getWishlist(wishlistId)
+    
+    // Sort items by priority before setting wishlist
+    const sortedItems = [...data.items].sort((a, b) => a.priority - b.priority)
+    
+    // Update store with current order
+    store.setItemOrder(wishlistId, sortedItems.map(item => item.id))
+    
+    // Set wishlist with sorted items
+    wishlist.value = {
+      ...data,
+      items: sortedItems
+    }
   } catch (err) {
     error.value = 'Failed to load wishlist'
     console.error(err)
@@ -390,7 +783,7 @@ function openCreateItemDialog() {
     item: null,
   }
   
-  // Reset form
+  // Reset form - remove priority from visible fields
   itemForm.value = {
     title: '',
     description: '',
@@ -398,7 +791,7 @@ function openCreateItemDialog() {
     link: '',
     image_url: '',
     size: 'Medium',
-    priority: 3,
+    priority: 3, // Keep this as internal value
     wishlist: route.params.id,
   }
   
@@ -412,6 +805,7 @@ function openCreateItemDialog() {
   }
   allImages.value = []
   hasScrapedData.value = false
+  selectedImagePreview.value = null
 }
 
 function openEditItemDialog(item: WishListItem) {
@@ -429,6 +823,7 @@ function openEditItemDialog(item: WishListItem) {
     price: '',
     image: ''
   }
+  selectedImagePreview.value = item.image_url || null
 }
 
 function confirmDeleteItem(item: WishListItem) {
@@ -453,8 +848,10 @@ async function handleItemSubmit() {
     formData.append('priority', itemForm.value.priority.toString())
     formData.append('wishlist', itemForm.value.wishlist.toString())
     
-    // Add image_url if it exists
-    if (itemForm.value.image_url) {
+    // Handle image submission
+    if (itemForm.value.image) {
+      formData.append('image', itemForm.value.image)
+    } else if (itemForm.value.image_url) {
       formData.append('image_url', itemForm.value.image_url)
     }
 
@@ -557,6 +954,7 @@ async function scrapeUrl() {
 
   try {
     scraping.value = true
+    imageQualities.value = {} // Reset image qualities
     const response = await wishlistsService.scrapeUrl(itemForm.value.link)
     
     // Update form with scraped data
@@ -568,7 +966,7 @@ async function scrapeUrl() {
       image_url: response.image_url || itemForm.value.image_url
     }
 
-    // Set size based on scraped price
+    // Update size based on scraped price
     if (response.price) {
       updateSizeFromPrice(response.price)
     }
@@ -587,57 +985,508 @@ async function scrapeUrl() {
   }
 }
 
-function updateSizeFromPrice(price: number) {
-  if (!price) {
-    itemForm.value.size = 'Medium'
+function updateSizeFromPrice(price: number | string) {
+  // Convert price to number if it's a string
+  const numPrice = typeof price === 'string' ? parseFloat(price) : price
+  
+  if (!numPrice || isNaN(numPrice)) {
+    itemForm.value.size = 'Medium' // Default size
     return
   }
   
-  if (price <= 25) {
+  if (numPrice <= 25) {
     itemForm.value.size = 'Stocking'
-  } else if (price <= 50) {
+  } else if (numPrice <= 50) {
     itemForm.value.size = 'Small'
-  } else if (price <= 100) {
+  } else if (numPrice <= 100) {
     itemForm.value.size = 'Medium'
   } else {
     itemForm.value.size = 'Large'
   }
 }
+
+// Add a watcher for the price field
+watch(() => itemForm.value.price, (newPrice) => {
+  if (newPrice !== '') {
+    updateSizeFromPrice(newPrice)
+  }
+})
+
+const hasActiveFilters = computed(() => 
+  filters.value.search || 
+  filters.value.size !== 'All' || 
+  isPriceRangeActive.value ||
+  (!isOwner.value && filters.value.purchaseStatus !== 'all')
+)
+
+const isPriceRangeActive = computed(() => {
+  if (!Array.isArray(filters.value.priceRange)) return false
+  const [min, max] = filters.value.priceRange
+  return min !== priceRange.value.min || max !== priceRange.value.max
+})
+
+const activeFiltersCount = computed(() => {
+  let count = 0
+  if (filters.value.search) count++
+  if (filters.value.size !== 'All') count++
+  if (isPriceRangeActive.value) count++
+  if (!isOwner.value && filters.value.purchaseStatus !== 'all') count++
+  return count
+})
+
+const getPurchaseStatusLabel = computed(() => {
+  const statusMap = {
+    all: 'All Items',
+    available: 'Available',
+    purchased: 'Purchased'
+  }
+  return statusMap[filters.value.purchaseStatus]
+})
+
+const selectedImagePreview = ref<string | null>(null)
+
+function handleImageUpload(file: File | null) {
+  if (!file) {
+    itemForm.value.image = null
+    itemForm.value.image_url = ''
+    selectedImagePreview.value = null
+    return
+  }
+
+  // Validate file size (5MB limit)
+  if (file.size > 5 * 1024 * 1024) {
+    itemErrors.value.image = 'Image size should be less than 5MB'
+    itemForm.value.image = null
+    selectedImagePreview.value = null
+    return
+  }
+
+  // Clear any existing image URL
+  itemForm.value.image_url = ''
+  
+  // Create preview URL
+  selectedImagePreview.value = URL.createObjectURL(file)
+}
+
+function selectScrapedImage(imageUrl: string) {
+  // Clear any uploaded file
+  itemForm.value.image = null
+  // Set the image URL
+  itemForm.value.image_url = imageUrl
+  selectedImagePreview.value = imageUrl
+}
+
+// Clean up object URLs when dialog closes
+watch(() => itemDialog.value.show, (show) => {
+  if (!show && selectedImagePreview.value) {
+    // Only revoke if it's a blob URL
+    if (selectedImagePreview.value.startsWith('blob:')) {
+      URL.revokeObjectURL(selectedImagePreview.value)
+    }
+    selectedImagePreview.value = null
+  }
+})
+
+// Add these refs
+const isDragMode = ref(false)
+const dragItems = computed({
+  get: () => {
+    const orderedIds = store.getItemOrder(wishlist.value?.id || 0)
+    if (orderedIds.length) {
+      const orderedItems = orderedIds
+        .map(id => filteredItems.value.find(item => item.id === id))
+        .filter(Boolean) as WishListItem[]
+      
+      // Add any new items that aren't in the order yet
+      const remainingItems = filteredItems.value.filter(
+        item => !orderedIds.includes(item.id)
+      )
+      
+      return [...orderedItems, ...remainingItems]
+    }
+    return [...filteredItems.value].sort((a, b) => a.priority - b.priority)
+  },
+  set: async (items) => {
+    if (!wishlist.value?.id) return
+
+    const itemIds = items.map(item => item.id)
+    
+    // Update store immediately for optimistic update
+    store.setItemOrder(wishlist.value.id, itemIds)
+    
+    try {
+      // Send to backend
+      const updatedItems = await wishlistsService.updateItemsOrder(wishlist.value.id, itemIds)
+      
+      // Update the wishlist with the returned items
+      if (wishlist.value) {
+        wishlist.value = {
+          ...wishlist.value,
+          items: updatedItems
+        }
+      }
+    } catch (error) {
+      console.error('Failed to update items order:', error)
+      await loadWishlist()
+    }
+  }
+})
+
+// Add these methods
+function toggleDragMode() {
+  isDragMode.value = !isDragMode.value
+  
+  // When exiting drag mode, update the wishlist items order
+  if (!isDragMode.value && wishlist.value) {
+    const orderedIds = store.getItemOrder(wishlist.value.id)
+    if (orderedIds.length) {
+      // Update the items array with the current order
+      wishlist.value = {
+        ...wishlist.value,
+        items: orderedIds
+          .map(id => wishlist.value!.items.find(item => item.id === id))
+          .filter(Boolean) as WishListItem[]
+      }
+    }
+  }
+}
+
+async function handleDragEnd(evt: any) {
+  if (evt.oldIndex === evt.newIndex) return
+  evt.preventDefault()
+}
+
+// Add these refs for edit dialog
+const editDialog = ref({
+  show: false,
+  name: '',
+  error: ''
+})
+
+// Add these methods
+function openEditDialog() {
+  if (!wishlist.value) return
+  editDialog.value = {
+    show: true,
+    name: wishlist.value.name,
+    error: ''
+  }
+}
+
+async function handleEditSubmit() {
+  if (!wishlist.value) return
+  
+  try {
+    loading.value = true
+    await wishlistsService.updateWishlist(wishlist.value.id, {
+      name: editDialog.value.name,
+      family: wishlist.value.family
+    })
+    await loadWishlist()
+    editDialog.value.show = false
+  } catch (err: any) {
+    if (err.response?.data?.name) {
+      editDialog.value.error = err.response.data.name[0]
+    } else {
+      error.value = 'Failed to update wishlist'
+    }
+    console.error(err)
+  } finally {
+    loading.value = false
+  }
+}
+
+// Add these refs
+const imageQualities = ref<Record<string, boolean>>({})
+const minimumImageSize = 200 // Minimum width/height in pixels
+
+// Add this computed property
+const filteredImages = computed(() => 
+  allImages.value.filter(image => imageQualities.value[image] !== false)
+)
+
+// Add this method
+function checkImageQuality(event: Event, imageUrl: string) {
+  const img = event.target as HTMLImageElement
+  if (img) {
+    // Check if image meets minimum size requirements
+    const isGoodQuality = img.naturalWidth >= minimumImageSize && 
+                         img.naturalHeight >= minimumImageSize
+    imageQualities.value[imageUrl] = isGoodQuality
+  }
+}
+
+function resetFilters() {
+  filters.value = {
+    search: '',
+    priceRange: [priceRange.value.min, priceRange.value.max] as [number, number],
+    size: 'All',
+    purchaseStatus: 'all'
+  }
+  showFilters.value = false
+}
+
+// Add these watchers after the other watchers
+watch(() => filters.value.priceRange[0], (newMin) => {
+  // Ensure min doesn't exceed max
+  if (newMin > filters.value.priceRange[1]) {
+    filters.value.priceRange = [filters.value.priceRange[1], filters.value.priceRange[1]]
+  }
+  // Ensure min isn't negative
+  if (newMin < 0) {
+    filters.value.priceRange = [0, filters.value.priceRange[1]]
+  }
+})
+
+watch(() => filters.value.priceRange[1], (newMax) => {
+  // Ensure max isn't less than min
+  if (newMax < filters.value.priceRange[0]) {
+    filters.value.priceRange = [filters.value.priceRange[0], filters.value.priceRange[0]]
+  }
+  // Ensure max doesn't exceed the maximum allowed price
+  if (newMax > priceRange.value.max) {
+    filters.value.priceRange = [filters.value.priceRange[0], priceRange.value.max]
+  }
+})
+
+// Update price range validation watchers
+watch(() => filters.value.priceRange, (newRange) => {
+  // Ensure values are numbers and within valid range
+  let [min, max] = newRange.map(val => 
+    Math.min(Math.max(Number(val) || 0, priceRange.value.min), priceRange.value.max)
+  )
+  
+  // Ensure min doesn't exceed max
+  if (min > max) {
+    min = max
+  }
+  
+  // Update if values were corrected
+  if (min !== newRange[0] || max !== newRange[1]) {
+    filters.value.priceRange = [min, max] as [number, number]
+  }
+}, { deep: true })
+
+function adjustPrice(type: 'min' | 'max', delta: number) {
+  if (type === 'min') {
+    const newValue = Math.max(Number(minPriceInput.value) + delta, 0)
+    handleMinPriceInput({ target: { value: newValue.toString() } } as any)
+  } else {
+    const newValue = Math.min(Number(maxPriceInput.value) + delta, priceRange.value.max)
+    handleMaxPriceInput({ target: { value: newValue.toString() } } as any)
+  }
+}
 </script>
 
 <style scoped>
-.image-grid {
+.masonry-grid {
+  columns: 4 300px;
+  column-gap: 16px;
+  padding: 16px;
+}
+
+.masonry-item {
+  break-inside: avoid;
+  margin-bottom: 16px;
+  border-radius: 8px;
+  overflow: hidden;
+  transition: transform 0.2s ease;
+  background: rgb(var(--v-theme-surface));
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.masonry-item:hover {
+  transform: translateY(-4px);
+}
+
+.card-content {
+  padding: 16px;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.title {
+  font-weight: 600;
+  font-size: 1.1rem;
+  flex: 1;
+  margin-right: 12px;
+}
+
+.description {
+  font-size: 0.9rem;
+  margin-bottom: 12px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.meta-info {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem;
+  color: rgba(var(--v-theme-on-surface), 0.7);
+  margin-bottom: 8px;
+}
+
+.purchased-info {
+  font-size: 0.9rem;
+  color: rgb(var(--v-theme-success));
+  margin-bottom: 8px;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  margin-top: 12px;
+  border-top: 1px solid rgba(var(--v-border-color), 0.12);
+  padding-top: 12px;
+}
+
+/* Drag mode styles */
+.drag-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+  padding: 16px;
+}
+
+.drag-item {
+  background: rgb(var(--v-theme-surface));
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s ease;
+}
+
+.drag-handle {
+  padding: 8px;
+  background: rgba(var(--v-theme-on-surface), 0.05);
+  cursor: move;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Dark theme adjustments */
+:deep(.v-theme--dark) .masonry-item,
+:deep(.v-theme--dark) .drag-item {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+:deep(.v-theme--dark) .drag-handle {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.price-input-container {
+  position: relative;
+  width: 120px;
+}
+
+.price-input {
+  width: 100%;
+}
+
+.price-input :deep(.v-field__append) {
+  padding-inline-start: 0;
+  padding-inline-end: 8px;
+}
+
+.price-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-left: 4px;
+}
+
+.price-controls .v-btn {
+  margin: -4px 0;
+  height: 20px !important;
+  width: 20px !important;
+}
+
+.price-input :deep(.v-field__input) {
+  min-height: 32px;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.price-input :deep(.v-field__field) {
+  min-height: 32px;
+}
+
+/* Drag animation */
+.sortable-drag {
+  opacity: 0.5;
+  transform: scale(1.05);
+}
+
+.sortable-ghost {
+  opacity: 0.5;
+}
+
+.ghost-item {
+  opacity: 0.5;
+  background: rgb(var(--v-theme-primary));
+}
+
+.sortable-ghost {
+  opacity: 0.5;
+}
+
+.sortable-drag {
+  cursor: grabbing;
+}
+
+.scraped-images-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
   gap: 8px;
-  max-height: 300px;
+  max-height: 400px;
   overflow-y: auto;
   padding: 8px;
-  border: 1px solid rgba(0, 0, 0, 0.12);
+  border: 1px solid rgba(var(--v-border-color), 0.12);
   border-radius: 4px;
 }
 
-.image-item {
+.scraped-image-item {
+  position: relative;
   cursor: pointer;
   border: 2px solid transparent;
   border-radius: 4px;
   transition: all 0.2s ease;
+  aspect-ratio: 1;
 }
 
-.image-item:hover {
+.scraped-image-item:hover {
   transform: scale(1.05);
+  z-index: 1;
 }
 
-.image-item.selected {
+.scraped-image-item.selected {
   border-color: rgb(var(--v-theme-primary));
 }
 
-.v-img--selected {
+:deep(.v-img--selected) {
   box-shadow: 0 0 0 2px rgb(var(--v-theme-primary));
 }
 
-/* Dark mode support */
-:deep(.v-theme--dark) .image-grid {
-  border-color: rgba(255, 255, 255, 0.12);
+.price-input :deep(.v-field__input) {
+  min-height: 32px;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.price-input :deep(.v-field) {
+  border-radius: 4px;
+}
+
+.price-input :deep(.v-field__input) {
+  margin-top: 1.5rem !important;
 }
 </style>

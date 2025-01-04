@@ -37,12 +37,25 @@ onMounted(async () => {
   const token = localStorage.getItem('token')
   if (token) {
     try {
+      // Set the token in axios defaults
+      api.defaults.headers.common['Authorization'] = `Bearer ${token}`
+      
+      // Get current user data
       const response = await api.get('/users/me/')
-      store.setUser(response.data)
+      const user = {
+        ...response.data,
+        full_name: response.data.full_name || response.data.username
+      }
+      
+      // Update this line to use setCurrentUser instead of setUser
+      store.setCurrentUser(user)
+      
+      // Fetch initial notifications
       await store.fetchNotifications()
     } catch (error) {
       console.error('Auth error:', error)
-      await store.logout()
+      // Clear token and redirect to login if auth fails
+      localStorage.removeItem('token')
       router.push('/login')
     }
   } else if (route.path !== '/login') {

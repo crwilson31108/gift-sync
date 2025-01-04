@@ -33,15 +33,15 @@
           <div class="flex items-center justify-between">
             <div class="flex items-center space-x-4">
               <v-avatar color="primary" size="40">
-                <span class="text-sm">{{ getUserInitials(notification.userId) }}</span>
+                <span class="text-sm">{{ getUserInitials(notification.user) }}</span>
               </v-avatar>
               <div>
                 <p class="text-light-text dark:text-dark-text">
-                  <span class="font-medium">{{ getUserName(notification.userId) }}</span>
+                  <span class="font-medium">{{ getUserName(notification.user) }}</span>
                   {{ getNotificationText(notification) }}
                 </p>
                 <p class="text-sm text-light-subtle dark:text-dark-subtle">
-                  {{ formatDate(notification.createdAt) }}
+                  {{ formatDate(notification.created_at) }}
                 </p>
               </div>
             </div>
@@ -80,35 +80,52 @@
 import { computed } from 'vue'
 import { useAppStore } from '@/stores/useAppStore'
 import { format } from 'date-fns'
-import type { Notification } from '@/stores/useAppStore'
+
+interface Notification {
+  id: number
+  user: number
+  type: 'new_item' | 'purchased' | 'wishlist_created'
+  target_id: number
+  read: boolean
+  created_at: string
+}
 
 const store = useAppStore()
 
 const notifications = computed(() => 
-  [...store.notifications].sort((a, b) => 
-    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  )
+  [...store.notifications]
+    .sort((a, b) => 
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    )
 )
 
 const unreadNotifications = computed(() => 
-  store.notifications.filter(n => !n.read)
+  notifications.value.filter(n => !n.read)
 )
 
 const getUserName = (userId: number) => {
-  const user = store.users.find(u => u.id === userId)
-  return user?.name || 'Unknown'
+  if (userId === store.currentUser?.id) return 'You'
+  const user = store.users?.find(u => u.id === userId)
+  return user?.full_name || 'Unknown'
 }
 
-const getUserInitials = (userId: number) => {
-  return getUserName(userId)
+const getUserInitials = (userId: number): string => {
+  const name = getUserName(userId)
+  return name
     .split(' ')
-    .map(n => n[0])
+    .map((n: string) => n[0])
     .join('')
     .toUpperCase()
 }
 
-const formatDate = (date: Date) => {
-  return format(new Date(date), 'MMM d, yyyy')
+const formatDate = (date: string | null | undefined) => {
+  if (!date) return ''
+  try {
+    return format(new Date(date), 'MMM d, yyyy')
+  } catch (error) {
+    console.error('Invalid date:', date)
+    return ''
+  }
 }
 
 const getNotificationText = (notification: Notification) => {
@@ -116,7 +133,7 @@ const getNotificationText = (notification: Notification) => {
     case 'new_item':
       return 'added a new item to their wishlist'
     case 'purchased':
-      return 'purchased an item from Meriah\'s wishlist'
+      return 'purchased an item from a wishlist'
     case 'wishlist_created':
       return 'created a new wishlist'
     default:
@@ -128,12 +145,9 @@ const getNotificationLink = (notification: Notification) => {
   switch (notification.type) {
     case 'new_item':
     case 'wishlist_created':
-      return `/wishlists/${notification.targetId}`
+      return `/wishlists/${notification.target_id}`
     case 'purchased':
-      const wishlist = store.wishlists.find(w => 
-        w.items.some(i => i.id === notification.targetId)
-      )
-      return `/wishlists/${wishlist?.id}`
+      return `/wishlists/${notification.target_id}`
     default:
       return '/'
   }
