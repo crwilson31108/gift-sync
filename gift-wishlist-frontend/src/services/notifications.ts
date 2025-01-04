@@ -1,13 +1,19 @@
-import api from './api'
+import api from '@/services/api'
 import type { Notification } from '@/types'
 
 export const notificationsService = {
   async getNotifications() {
-    const response = await api.get<Notification[]>('/notifications/')
-    return response.data
+    const { data } = await api.get<Notification[]>('/notifications/')
+    return data
+  },
+
+  async markAsRead(notificationId: number) {
+    const { data } = await api.patch(`/notifications/${notificationId}/read/`)
+    return data
   },
 
   async markAllAsRead() {
-    await api.post('/notifications/mark_all_read/')
+    const { data } = await api.patch('/notifications/mark-all-read/')
+    return data
   }
 } 

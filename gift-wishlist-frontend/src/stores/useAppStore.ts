@@ -1,74 +1,78 @@
 // src/stores/useAppStore.ts
 import { defineStore } from 'pinia'
-import type { User, Notification } from '@/types'
-import { authService } from '@/services/auth'
+import { ref, computed } from 'vue'
 import { notificationsService } from '@/services/notifications'
+import { authService } from '@/services/auth'
 
-interface AppState {
-  currentUser: User | null
-  notifications: Notification[]
-  isDarkTheme: boolean
-  loading: boolean
-  itemOrder: Record<number, number[]>
+export interface User {
+  id: number
+  username: string
+  email: string
+  full_name?: string
+  profile_picture?: string
+  bio?: string
 }
 
-export const useAppStore = defineStore('app', {
-  state: (): AppState => ({
-    currentUser: null,
-    notifications: [],
-    isDarkTheme: localStorage.getItem('theme') === 'dark',
-    loading: false,
-    itemOrder: {}
-  }),
+export interface Notification {
+  id: number
+  type: string
+  target_id: number
+  read: boolean
+  created_at: string
+}
 
-  getters: {
-    unreadNotificationsCount: (state) => 
-      state.notifications.filter(n => !n.read).length
-  },
+export const useAppStore = defineStore('app', () => {
+  const currentUser = ref<User | null>(null)
+  const notifications = ref<Notification[]>([])
+  const isDarkTheme = ref(false)
+  const loading = ref(false)
+  const itemOrder = ref<Record<number, number[]>>({})
 
-  actions: {
-    setCurrentUser(user: User) {
-      this.currentUser = user
-    },
+  // Actions
+  function setCurrentUser(user: User | null) {
+    currentUser.value = user
+  }
 
-    toggleTheme(value?: boolean) {
-      this.isDarkTheme = value ?? !this.isDarkTheme
-      localStorage.setItem('theme', this.isDarkTheme ? 'dark' : 'light')
-    },
+  function setDarkTheme(value: boolean) {
+    isDarkTheme.value = value
+    localStorage.setItem('theme', value ? 'dark' : 'light')
+  }
 
-    async logout() {
-      try {
-        await authService.logout()
-        this.currentUser = null
-        this.notifications = []
-        localStorage.removeItem('token')
-      } catch (error) {
-        console.error('Logout error:', error)
-      }
-    },
+  function toggleTheme() {
+    setDarkTheme(!isDarkTheme.value)
+  }
 
-    async fetchNotifications() {
-      try {
-        const response = await notificationsService.getNotifications()
-        this.notifications = response
-      } catch (error) {
-        console.error('Failed to fetch notifications:', error)
-      }
-    },
-
-    // Item ordering actions
-    setItemOrder(wishlistId: number, itemIds: number[]) {
-      this.itemOrder[wishlistId] = itemIds
-    },
-
-    getItemOrder(wishlistId: number) {
-      return this.itemOrder[wishlistId] || []
+  async function fetchNotifications() {
+    try {
+      const data = await notificationsService.getNotifications()
+      notifications.value = data
+    } catch (error) {
+      console.error('Failed to fetch notifications:', error)
     }
-  },
+  }
 
-  persist: {
-    key: 'gift-wishlist-store',
-    storage: localStorage,
-    paths: ['isDarkTheme']
+  async function logout() {
+    try {
+      await authService.logout()
+      currentUser.value = null
+      notifications.value = []
+      localStorage.removeItem('token')
+    } catch (error) {
+      console.error('Error during logout:', error)
+      throw error
+    }
+  }
+
+  return {
+    currentUser,
+    notifications,
+    isDarkTheme,
+    loading,
+    itemOrder,
+    setCurrentUser,
+    setDarkTheme,
+    toggleTheme,
+    fetchNotifications,
+    logout
   }
 })

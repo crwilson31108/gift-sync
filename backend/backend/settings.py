@@ -207,6 +207,9 @@ CORS_ALLOW_HEADERS = [
     'user-agent',
     'x-csrftoken',
     'x-requested-with',
+    'Access-Control-Allow-Origin',
+    'Access-Control-Allow-Methods',
+    'Access-Control-Allow-Headers'
 ]
 
 # Add these JWT settings after the REST_FRAMEWORK settings
@@ -233,3 +236,12 @@ SIMPLE_JWT = {
     
     'JTI_CLAIM': 'jti',
 }
+
+# Email and Frontend settings
+FRONTEND_URL = 'https://gift-sync.vercel.app'  # Production URL
+if DEBUG:
+    FRONTEND_URL = 'http://localhost:5173'  # Development URL
+
+# SendGrid settings
+SENDGRID_API_KEY = os.getenv('SENDGRID_API_KEY')
+DEFAULT_FROM_EMAIL = "Gift Sync <crwilson311@gmail.com>"
