@@ -37,28 +37,24 @@
           "value": "public, max-age=31536000, immutable"
         }
       ]
-    }
-  ],
-  "routes": [
-    {
-      "src": "/assets/(.*)",
-      "headers": { "cache-control": "public, max-age=31536000, immutable" },
-      "dest": "/assets/$1"
     },
     {
-      "src": "/registerSW.js",
-      "headers": { "cache-control": "public, max-age=0, must-revalidate" },
-      "dest": "/registerSW.js"
+      "source": "/assets/(.*)",
+      "headers": {
+        "cache-control": "public, max-age=31536000, immutable"
+      }
     },
     {
-      "src": "/(.*)",
-      "dest": "/"
-    },
-    {
-      "src": "/sw.js",
+      "source": "/registerSW.js",
       "headers": {
         "cache-control": "public, max-age=0, must-revalidate"
       }
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/"
     }
   ]
 }
