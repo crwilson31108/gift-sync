@@ -2,10 +2,21 @@ from rest_framework import serializers
 from .models import User, Family, WishList, WishListItem, Notification
 
 class UserSerializer(serializers.ModelSerializer):
+    full_name = serializers.SerializerMethodField()
+
     class Meta:
         model = User
-        fields = ('id', 'username', 'email', 'profile_picture', 'bio')
+        fields = ('id', 'username', 'email', 'profile_picture', 'bio', 'full_name')
         read_only_fields = ('id',)
+
+    def get_full_name(self, obj):
+        if obj.first_name and obj.last_name:
+            return f"{obj.first_name} {obj.last_name}"
+        elif obj.first_name:
+            return obj.first_name
+        elif obj.last_name:
+            return obj.last_name
+        return obj.username  # Fallback to username if no name is set
 
 class FamilySerializer(serializers.ModelSerializer):
     members = UserSerializer(many=True, read_only=True)
@@ -55,10 +66,32 @@ class FamilySerializer(serializers.ModelSerializer):
         return instance
 
 class WishListItemSerializer(serializers.ModelSerializer):
+    purchased_by = UserSerializer(read_only=True)
+    
     class Meta:
         model = WishListItem
-        fields = '__all__'
-        read_only_fields = ('id', 'created_at', 'updated_at')
+        fields = (
+            'id', 'title', 'description', 'price', 'link', 
+            'image', 'image_url', 'size', 'priority',
+            'is_purchased', 'purchased_at', 'purchased_by',
+            'created_at', 'updated_at', 'wishlist'
+        )
+        read_only_fields = (
+            'id', 'created_at', 'updated_at', 
+            'purchased_by', 'purchased_at'
+        )
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get('request')
+        
+        # If the viewer is the wishlist owner, hide purchased information
+        if request and request.user == instance.wishlist.owner:
+            data.pop('is_purchased', None)
+            data.pop('purchased_by', None)
+            data.pop('purchased_at', None)
+        
+        return data
 
     def create(self, validated_data):
         # Ensure image_url is saved

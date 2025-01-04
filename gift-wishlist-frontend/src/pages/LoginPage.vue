@@ -9,7 +9,7 @@
           class="mx-auto h-12 w-auto"
           @error="handleImageError"
         />
-        <h2 class="mt-6 text-3xl font-bold text-primary">
+        <h2 class="mt-6 text-3xl font-bold text-light-text dark:text-dark-text">
           Welcome back
         </h2>
         <p class="mt-2 text-sm text-light-subtle dark:text-dark-subtle">
@@ -27,6 +27,7 @@
             required
             :error-messages="errors.email"
             @input="errors.email = ''"
+            :class="{'dark-theme': store.isDarkTheme}"
           />
 
           <v-text-field
@@ -38,6 +39,7 @@
             @input="errors.password = ''"
             :append-inner-icon="showPassword ? 'mdi-eye-off' : 'mdi-eye'"
             @click:append-inner="showPassword = !showPassword"
+            :class="{'dark-theme': store.isDarkTheme}"
           />
         </div>
 
@@ -56,7 +58,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/useAppStore'
 import { authService } from '@/services/auth'
@@ -82,6 +84,15 @@ const handleImageError = (e: Event) => {
   img.style.display = 'none'
 }
 
+interface UserResponse {
+  id: number
+  username: string
+  email: string
+  full_name?: string
+  profile_picture?: string
+  bio?: string
+}
+
 const handleSubmit = async () => {
   loading.value = true
   errors.email = ''
@@ -89,7 +100,11 @@ const handleSubmit = async () => {
 
   try {
     const response = await authService.login(form)
-    store.setUser(response.user)
+    const user: UserResponse = {
+      ...response.user,
+      full_name: response.user.full_name || response.user.username
+    }
+    store.setCurrentUser(user)
     const redirectPath = localStorage.getItem('redirectPath') || '/'
     localStorage.removeItem('redirectPath')
     router.push(redirectPath)
@@ -106,4 +121,28 @@ const handleSubmit = async () => {
     loading.value = false
   }
 }
-</script> 
+
+onMounted(() => {
+  const savedTheme = localStorage.getItem('theme')
+  if (savedTheme) {
+    store.toggleTheme(savedTheme === 'dark')
+  }
+})
+</script>
+
+<style scoped>
+.dark-theme {
+  --v-theme-surface: var(--v-theme-dark);
+  color: rgba(255, 255, 255, 0.87);
+}
+
+.dark-theme :deep(.v-field__input),
+.dark-theme :deep(.v-label) {
+  color: rgba(255, 255, 255, 0.87);
+}
+
+.dark-theme :deep(.v-field) {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+</style> 

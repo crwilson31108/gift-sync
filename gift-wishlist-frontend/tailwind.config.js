@@ -45,7 +45,13 @@ export default {
         'error': {
           DEFAULT: 'rgb(var(--v-theme-error))',
           'dark': 'rgb(var(--v-theme-error-dark))',
-        }
+        },
+        'light-text': '#1a1a1a',
+        'dark-text': '#ffffff',
+        'light-bg': '#ffffff',
+        'dark-bg': '#121212',
+        'light-subtle': '#666666',
+        'dark-subtle': '#a0a0a0',
       },
       backgroundColor: {
         'card': {

@@ -112,9 +112,11 @@ class WishListViewSet(viewsets.ModelViewSet):
     def recent_activity(self, request):
         user = request.user
         
-        # Get items from families user is a member of
+        # Get items from families user is a member of, but exclude user's own wishlists
         items = WishListItem.objects.filter(
-            wishlist__family__members=user
+            # Put all filter conditions inside Q objects
+            Q(wishlist__family__members=user) & 
+            ~Q(wishlist__owner=user)
         ).select_related(
             'wishlist__owner',
             'purchased_by'
@@ -127,14 +129,18 @@ class WishListViewSet(viewsets.ModelViewSet):
                     'id': f'purchase_{item.id}',
                     'title': f'{item.purchased_by.username} purchased {item.title}',
                     'date': item.purchased_at,
-                    'color': 'success'
+                    'color': 'success',
+                    'userId': item.purchased_by.id,
+                    'wishlistOwnerId': item.wishlist.owner.id
                 })
             else:
                 activity.append({
                     'id': f'add_{item.id}',
                     'title': f'{item.wishlist.owner.username} added {item.title}',
                     'date': item.created_at,
-                    'color': 'info'
+                    'color': 'info',
+                    'userId': item.wishlist.owner.id,
+                    'wishlistOwnerId': item.wishlist.owner.id
                 })
         
         return Response(activity)
@@ -146,7 +152,7 @@ class WishListItemViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return WishListItem.objects.filter(
             wishlist__family__members=self.request.user
-        )
+        ).select_related('purchased_by', 'wishlist__owner')
 
     def perform_create(self, serializer):
         # Ensure image_url is saved from form data
@@ -175,14 +181,9 @@ class WishListItemViewSet(viewsets.ModelViewSet):
         item.purchased_at = timezone.now()
         item.save()
         
-        # Create notification for wishlist owner
-        Notification.objects.create(
-            user=item.wishlist.owner,
-            type='purchased',
-            target_id=item.id
-        )
-        
-        return Response(status=status.HTTP_200_OK)
+        # Return the updated item with nested purchased_by data
+        serializer = self.get_serializer(item)
+        return Response(serializer.data)
 
     @action(detail=True, methods=['POST'])
     def unpurchase(self, request, pk=None):
@@ -198,7 +199,9 @@ class WishListItemViewSet(viewsets.ModelViewSet):
         item.purchased_at = None
         item.save()
         
-        return Response(status=status.HTTP_200_OK)
+        # Return the updated item
+        serializer = self.get_serializer(item)
+        return Response(serializer.data)
 
     @action(detail=False, methods=['POST'])
     def scrape_url(self, request):
@@ -225,6 +228,41 @@ class WishListItemViewSet(viewsets.ModelViewSet):
                 {'error': str(e)}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+    @action(detail=False, methods=['POST'])
+    def reorder_items(self, request):
+        wishlist_id = request.data.get('wishlist_id')
+        item_ids = request.data.get('item_ids', [])
+        
+        if not wishlist_id or not item_ids:
+            return Response(
+                {'detail': 'Wishlist ID and item IDs are required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Verify user has access to this wishlist
+        wishlist = WishList.objects.filter(
+            id=wishlist_id,
+            family__members=request.user
+        ).first()
+        
+        if not wishlist:
+            return Response(
+                {'detail': 'Wishlist not found'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Update priority for each item
+        for index, item_id in enumerate(item_ids):
+            WishListItem.objects.filter(
+                id=item_id, 
+                wishlist=wishlist
+            ).update(priority=index)
+        
+        # Return the updated items
+        items = WishListItem.objects.filter(wishlist=wishlist).order_by('priority')
+        serializer = self.get_serializer(items, many=True)
+        return Response(serializer.data)
 
 class NotificationViewSet(viewsets.ModelViewSet):
     serializer_class = NotificationSerializer

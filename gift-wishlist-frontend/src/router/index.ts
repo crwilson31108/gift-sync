@@ -73,6 +73,16 @@ const routes: RouteRecordRaw[] = [
 const router = createRouter({
   history: createWebHistory(),
   routes,
+  scrollBehavior(to, from, savedPosition) {
+    if (savedPosition) {
+      return savedPosition
+    } else {
+      return { 
+        top: 0,
+        behavior: 'smooth'
+      }
+    }
+  }
 })
 
 router.beforeEach(async (to, from, next) => {
