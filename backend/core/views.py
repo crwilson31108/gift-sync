@@ -349,23 +349,23 @@ class PasswordResetViewSet(viewsets.ViewSet):
     
     @action(detail=False, methods=['POST'])
     def request_reset(self, request):
-        print("\n=== Starting Password Reset Request ===")
-        email = request.data.get('email')
-        ip_address = request.META.get('HTTP_X_FORWARDED_FOR', '') or request.META.get('REMOTE_ADDR', '')
+        print("\n=== Password Reset Request ===")
+        print(f"FRONTEND_URL from settings: {settings.FRONTEND_URL}")
+        print(f"DEBUG mode: {settings.DEBUG}")
         
+        email = request.data.get('email')
         if not email:
             return Response(
                 {'detail': 'Email is required'}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
-            
-        print(f"Processing reset request for email: {email}")
-        print(f"Request IP: {ip_address}")
         
         try:
             user = User.objects.get(email=email)
             token = default_token_generator.make_token(user)
             reset_url = f"{settings.FRONTEND_URL}/reset-password/{user.id}/{token}"
+            
+            print(f"Generated reset URL: {reset_url}")  # Debug print
             
             message = Mail(
                 from_email=settings.DEFAULT_FROM_EMAIL,
