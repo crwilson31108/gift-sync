@@ -178,17 +178,20 @@ function getMemberFamilies(member: User) {
 
 async function handleWishlistView(member: User) {
   try {
+    loading.value = true
     // Check if user has a wishlist
-    const wishlists = await wishlistsService.getUserWishlists(member.id)
+    const wishlists = await wishlistsService.getWishlists({ owner: member.id })
     
     if (wishlists && wishlists.length > 0) {
-      router.push(`/wishlists/${member.id}`)
+      router.push(`/wishlists/${wishlists[0].id}`)
     } else {
       toast.info(`${member.username} hasn't created a wishlist yet`)
     }
   } catch (error) {
     console.error('Error checking wishlist:', error)
     toast.error('Unable to check wishlist availability')
+  } finally {
+    loading.value = false
   }
 }
 </script> 
