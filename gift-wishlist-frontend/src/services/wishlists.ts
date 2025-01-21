@@ -132,5 +132,10 @@ export const wishlistsService = {
       }
     )
     return response.data
+  },
+
+  async getUserWishlists(userId: number) {
+    const { data } = await api.get(`/wishlists/?user=${userId}`)
+    return data
   }
 } 

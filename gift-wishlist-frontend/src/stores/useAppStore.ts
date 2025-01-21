@@ -11,6 +11,7 @@ export interface User {
   full_name?: string
   profile_picture?: string
   bio?: string
+  avatar?: string
 }
 
 export interface Notification {
@@ -28,6 +29,7 @@ export const useAppStore = defineStore('app', () => {
   const loading = ref(true)
   const initialized = ref(false)
   const itemOrder = ref<Record<number, number[]>>({})
+  const users = ref<User[]>([])
 
   // Enhanced initialization function
   async function initializeApp() {
@@ -109,6 +111,15 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
+  async function fetchUsers() {
+    try {
+      const response = await api.get('/users/')
+      users.value = response.data
+    } catch (error) {
+      console.error('Failed to fetch users:', error)
+    }
+  }
+
   return {
     currentUser,
     notifications,
@@ -116,6 +127,7 @@ export const useAppStore = defineStore('app', () => {
     loading,
     initialized,
     itemOrder,
+    users,
     setCurrentUser,
     updateCurrentUser,
     setDarkTheme,
@@ -124,7 +136,8 @@ export const useAppStore = defineStore('app', () => {
     logout,
     setItemOrder,
     getItemOrder,
-    initializeApp
+    initializeApp,
+    fetchUsers
   }
 }, {
   persist: {

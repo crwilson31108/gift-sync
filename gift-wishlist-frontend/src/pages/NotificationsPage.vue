@@ -97,7 +97,8 @@ const unreadNotifications = computed(() =>
 
 const getUserName = (userId: number) => {
   if (userId === store.currentUser?.id) return 'You'
-  return store.currentUser?.full_name || 'Unknown'
+  const user = store.users.find(u => u.id === userId)
+  return user?.username || 'Unknown'
 }
 
 const getUserInitials = (userId: number): string => {
