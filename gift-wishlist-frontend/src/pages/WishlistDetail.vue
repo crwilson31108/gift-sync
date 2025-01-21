@@ -59,136 +59,143 @@
     <div v-if="!loading && wishlist" class="mb-6">
       <v-expand-transition>
         <div v-show="showFilters">
-          <!-- New Filter Layout -->
-          <v-card class="mb-4 pa-4">
-            <!-- Search & Size Filters -->
-            <div class="flex flex-wrap items-center gap-4 mb-6">
-              <v-text-field
-                v-model="filters.search"
-                label="Search items"
-                prepend-inner-icon="mdi-magnify"
-                density="comfortable"
-                hide-details
-                clearable
-                style="max-width: 220px;"
-              />
-              <v-select
-                v-model="filters.size"
-                :items="['All', 'Stocking', 'Small', 'Medium', 'Large']"
-                label="Size"
-                density="comfortable"
-                hide-details
-                style="max-width: 200px;"
-              />
-              <v-select
-                v-if="!isOwner"
-                v-model="filters.purchaseStatus"
-                :items="[
-                  { title: 'All Items', value: 'all' },
-                  { title: 'Available', value: 'available' },
-                  { title: 'Purchased', value: 'purchased' }
-                ]"
-                item-title="title"
-                item-value="value"
-                label="Status"
-                density="comfortable"
-                hide-details
-                style="max-width: 200px;"
-              />
-            </div>
-
-            <!-- Price Range Controls -->
-            <div>
-              <div class="flex flex-wrap items-center gap-4 mb-4">
-                <div class="price-input-container">
-                  <v-text-field
-                    v-model="minPriceInput"
-                    label="Min Price"
-                    type="text"
-                    prefix="$"
-                    class="price-input"
-                    style="width: 180px; height: 64px;"
-                    density="comfortable"
-                    hide-details
-                    @input="handleMinPriceInput"
-                  >
-                    <template v-slot:append>
-                      <div class="price-controls">
-                        <v-btn
-                          icon="mdi-chevron-up"
-                          size="x-small"
-                          variant="text"
-                          density="comfortable"
-                          @click="adjustPrice('min', 1)"
-                        />
-                        <v-btn
-                          icon="mdi-chevron-down"
-                          size="x-small"
-                          variant="text"
-                          density="comfortable"
-                          @click="adjustPrice('min', -1)"
-                        />
-                      </div>
-                    </template>
-                  </v-text-field>
-                </div>
-
-                <span class="text-light-subtle dark:text-dark-subtle">to</span>
-
-                <div class="price-input-container">
-                  <v-text-field
-                    v-model="maxPriceInput"
-                    label="Max Price"
-                    type="text"
-                    prefix="$"
-                    class="price-input"
-                    style="width: 180px; height: 64px;"
-                    density="comfortable"
-                    hide-details
-                    @input="handleMaxPriceInput"
-                  >
-                    <template v-slot:append>
-                      <div class="price-controls">
-                        <v-btn
-                          icon="mdi-chevron-up"
-                          size="x-small"
-                          variant="text"
-                          density="comfortable"
-                          @click="adjustPrice('max', 1)"
-                        />
-                        <v-btn
-                          icon="mdi-chevron-down"
-                          size="x-small"
-                          variant="text"
-                          density="comfortable"
-                          @click="adjustPrice('max', -1)"
-                        />
-                      </div>
-                    </template>
-                  </v-text-field>
-                </div>
-
-                <v-btn
-                  v-if="isPriceRangeActive"
-                  icon="mdi-refresh"
-                  size="small"
-                  variant="text"
-                  @click="resetPriceRange"
-                  :disabled="loading"
+          <v-card class="mb-4">
+            <v-card-title class="d-flex align-center py-3 px-4">
+              <v-icon icon="mdi-filter-variant" class="mr-2" />
+              Filters
+            </v-card-title>
+            <v-divider />
+            <v-card-text class="py-4">
+              <!-- Search & Size Filters -->
+              <div class="d-flex flex-wrap align-center gap-4">
+                <v-text-field
+                  v-model="filters.search"
+                  label="Search items"
+                  prepend-inner-icon="mdi-magnify"
+                  density="comfortable"
+                  hide-details
+                  clearable
+                  class="filter-field"
+                />
+                <v-select
+                  v-model="filters.size"
+                  :items="['All', 'Stocking', 'Small', 'Medium', 'Large']"
+                  label="Size"
+                  density="comfortable"
+                  hide-details
+                  class="filter-field"
+                />
+                <v-select
+                  v-if="!isOwner"
+                  v-model="filters.purchaseStatus"
+                  :items="[
+                    { title: 'All Items', value: 'all' },
+                    { title: 'Available', value: 'available' },
+                    { title: 'Purchased', value: 'purchased' }
+                  ]"
+                  item-title="title"
+                  item-value="value"
+                  label="Status"
+                  density="comfortable"
+                  hide-details
+                  class="filter-field"
                 />
               </div>
-            </div>
+
+              <!-- Price Range Controls -->
+              <v-divider class="my-4" />
+              <div class="price-range-container">
+                <div class="text-subtitle-2 mb-3">Price Range</div>
+                <div class="d-flex flex-wrap align-center gap-4">
+                  <div class="price-input-container">
+                    <v-text-field
+                      v-model="minPriceInput"
+                      label="Min Price"
+                      type="text"
+                      prefix="$"
+                      class="price-input"
+                      density="comfortable"
+                      hide-details
+                      @input="handleMinPriceInput"
+                    >
+                      <template v-slot:append>
+                        <div class="price-controls">
+                          <v-btn
+                            icon="mdi-chevron-up"
+                            size="x-small"
+                            variant="text"
+                            density="comfortable"
+                            @click="adjustPrice('min', 1)"
+                          />
+                          <v-btn
+                            icon="mdi-chevron-down"
+                            size="x-small"
+                            variant="text"
+                            density="comfortable"
+                            @click="adjustPrice('min', -1)"
+                          />
+                        </div>
+                      </template>
+                    </v-text-field>
+                  </div>
+
+                  <span class="text-light-subtle dark:text-dark-subtle">to</span>
+
+                  <div class="price-input-container">
+                    <v-text-field
+                      v-model="maxPriceInput"
+                      label="Max Price"
+                      type="text"
+                      prefix="$"
+                      class="price-input"
+                      density="comfortable"
+                      hide-details
+                      @input="handleMaxPriceInput"
+                    >
+                      <template v-slot:append>
+                        <div class="price-controls">
+                          <v-btn
+                            icon="mdi-chevron-up"
+                            size="x-small"
+                            variant="text"
+                            density="comfortable"
+                            @click="adjustPrice('max', 1)"
+                          />
+                          <v-btn
+                            icon="mdi-chevron-down"
+                            size="x-small"
+                            variant="text"
+                            density="comfortable"
+                            @click="adjustPrice('max', -1)"
+                          />
+                        </div>
+                      </template>
+                    </v-text-field>
+                  </div>
+
+                  <v-btn
+                    v-if="isPriceRangeActive"
+                    icon="mdi-refresh"
+                    size="small"
+                    variant="text"
+                    @click="resetPriceRange"
+                    :disabled="loading"
+                  />
+                </div>
+              </div>
+            </v-card-text>
           </v-card>
         </div>
       </v-expand-transition>
 
       <!-- Filter Toggle Button -->
-      <div class="flex items-center gap-2">
+      <div class="d-flex align-center gap-2">
         <v-btn
           variant="text"
           :prepend-icon="showFilters ? 'mdi-filter-off' : 'mdi-filter'"
           @click="showFilters = !showFilters"
           size="small"
+          :color="activeFiltersCount > 0 ? 'primary' : undefined"
         >
           {{ showFilters ? 'Hide Filters' : 'Show Filters' }}
           <template v-if="!showFilters && activeFiltersCount > 0">
@@ -328,8 +335,21 @@
             <span>Size: {{ item.size }}</span>
           </div>
 
-          <div v-if="!isOwner && item.is_purchased" class="purchased-info">
-            Purchased by {{ item.purchased_by?.full_name }}
+          <!-- Purchase Actions -->
+          <div class="purchase-actions mt-3">
+            <div v-if="!isOwner && item.is_purchased" class="purchased-info">
+              Purchased by {{ item.purchased_by?.username }}
+            </div>
+            <v-btn
+              v-else-if="!isOwner"
+              block
+              color="primary"
+              size="small"
+              :loading="loading"
+              @click="handlePurchaseItem(item)"
+            >
+              Mark as Purchased
+            </v-btn>
           </div>
 
           <div class="actions">
@@ -362,25 +382,6 @@
                 color="error"
                 @click="confirmDeleteItem(item)"
               />
-            </template>
-            <template v-else>
-              <v-btn
-                v-if="!item.is_purchased"
-                prepend-icon="mdi-gift"
-                color="success"
-                @click="handlePurchase(item)"
-              >
-                Mark as Purchased
-              </v-btn>
-              <v-btn
-                v-else
-                prepend-icon="mdi-gift-off"
-                color="error"
-                variant="outlined"
-                @click="handleUnpurchase(item)"
-              >
-                Undo Purchase
-              </v-btn>
             </template>
           </div>
         </div>
@@ -1792,18 +1793,17 @@ function clearSelectedImage() {
 
 /* Update card styles */
 .card-content {
-  padding: 20px;
+  padding: 1rem;
   flex-grow: 1;
   display: flex;
   flex-direction: column;
-  gap: 12px;
 }
 
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 12px;
+  margin-bottom: 0.5rem;
 }
 
 .title {
@@ -1814,23 +1814,21 @@ function clearSelectedImage() {
 }
 
 .description {
-  font-size: 0.9rem;
-  margin-bottom: 12px;
-  flex-grow: 1;
+  font-size: 0.875rem;
+  line-height: 1.4;
 }
 
 .meta-info {
   display: flex;
-  justify-content: space-between;
-  font-size: 0.9rem;
-  color: rgba(var(--v-theme-on-surface), 0.7);
-  margin-bottom: 8px;
+  gap: 1rem;
+  font-size: 0.875rem;
+  color: var(--v-theme-text-subtle);
+  margin-top: 0.5rem;
 }
 
 .purchased-info {
-  font-size: 0.9rem;
-  color: rgb(var(--v-theme-success));
-  margin-bottom: 8px;
+  font-size: 0.875rem;
+  color: var(--v-theme-success);
 }
 
 .actions {
@@ -1844,7 +1842,6 @@ function clearSelectedImage() {
 /* Ghost item styles */
 .ghost-item {
   opacity: 0.5;
-  background: rgb(var(--v-theme-primary));
 }
 
 .sortable-ghost {
@@ -1978,5 +1975,46 @@ function clearSelectedImage() {
 .scraped-image-item.selected {
   border: 2px solid var(--v-theme-primary);
   transform: scale(1.05);
+}
+
+.purchase-actions {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(var(--v-border-color), 0.12);
+}
+
+/* Filter Styles */
+.filter-field {
+  min-width: 180px;
+  max-width: 220px;
+}
+
+.price-range-container {
+  margin-top: 1rem;
+}
+
+.price-input-container {
+  flex: 1;
+  min-width: 160px;
+  max-width: 180px;
+}
+
+.price-input {
+  width: 100%;
+}
+
+.price-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 599px) {
+  .filter-field,
+  .price-input-container {
+    min-width: 100%;
+    max-width: 100%;
+  }
 }
 </style>
