@@ -86,23 +86,34 @@
       <v-window v-model="activeTab">
         <!-- My Wishlists Tab -->
         <v-window-item value="my">
-          <div v-if="myWishlists.length" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div v-if="myWishlists.length" class="wishlist-grid">
             <WishlistCard
-              v-for="wishlist in myWishlists"
+              v-for="wishlist in sortedMyWishlists"
               :key="wishlist.id"
               :wishlist="wishlist"
+              ref="wishlistCards"
               @edit="openEditDialog"
               @delete="confirmDelete"
             >
               <template #preview>
                 <div class="grid grid-cols-2 gap-1 mb-2">
-                  <img
+                  <v-img
                     v-for="item in getTopPriorityItems(wishlist.items, 4)"
                     :key="item.id"
                     :src="getItemImage(item)"
                     :alt="item.title"
-                    class="w-full h-24 object-cover rounded"
-                  />
+                    cover
+                    class="rounded"
+                    height="96"
+                    @load="handleImageLoad(wishlist.id)"
+                    @error="handleImageError(wishlist.id)"
+                  >
+                    <template v-slot:placeholder>
+                      <div class="d-flex align-center justify-center fill-height">
+                        <v-progress-circular indeterminate color="primary" />
+                      </div>
+                    </template>
+                  </v-img>
                 </div>
               </template>
               <template #actions>
@@ -126,21 +137,32 @@
 
         <!-- Others' Wishlists Tab -->
         <v-window-item value="others">
-          <div v-if="othersWishlists.length" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div v-if="othersWishlists.length" class="wishlist-grid">
             <WishlistCard
-              v-for="wishlist in othersWishlists"
+              v-for="wishlist in sortedOthersWishlists"
               :key="wishlist.id"
               :wishlist="wishlist"
+              ref="wishlistCards"
             >
               <template #preview>
                 <div class="grid grid-cols-2 gap-1 mb-2">
-                  <img
+                  <v-img
                     v-for="item in getTopPriorityItems(wishlist.items, 4)"
                     :key="item.id"
                     :src="getItemImage(item)"
                     :alt="item.title"
-                    class="w-full h-24 object-cover rounded"
-                  />
+                    cover
+                    class="rounded"
+                    height="96"
+                    @load="handleImageLoad(wishlist.id)"
+                    @error="handleImageError(wishlist.id)"
+                  >
+                    <template v-slot:placeholder>
+                      <div class="d-flex align-center justify-center fill-height">
+                        <v-progress-circular indeterminate color="primary" />
+                      </div>
+                    </template>
+                  </v-img>
                 </div>
               </template>
               <template #actions>
@@ -296,6 +318,24 @@ const deleteDialog = ref({
   wishlist: null as WishList | null
 })
 
+// Add refs for card management
+const wishlistCards = ref<InstanceType<typeof WishlistCard>[]>([])
+
+// Add computed properties for sorted wishlists
+const sortedMyWishlists = computed(() => 
+  [...myWishlists.value].sort((a, b) => {
+    // Sort by creation date, newest first
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  })
+)
+
+const sortedOthersWishlists = computed(() => 
+  [...othersWishlists.value].sort((a, b) => {
+    // Sort by creation date, newest first
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  })
+)
+
 // Fetch initial data
 onMounted(async () => {
   try {
@@ -411,14 +451,36 @@ const activeTab = ref('my')
 
 function getTopPriorityItems(items: any[], count: number = 4) {
   return (items || [])
-    .sort((a, b) => (a.priority || 0) - (b.priority || 0))
+    .sort((a, b) => {
+      // First by priority
+      const priorityDiff = (a.priority || 0) - (b.priority || 0)
+      if (priorityDiff !== 0) return priorityDiff
+      // Then by creation date if priorities are equal
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    })
     .slice(0, count)
 }
 
+// Add image handling functions
+function handleImageLoad(wishlistId: number) {
+  const card = wishlistCards.value.find(
+    card => card.$props.wishlist.id === wishlistId
+  )
+  if (card) {
+    card.handleImageLoad()
+  }
+}
+
+function handleImageError(wishlistId: number) {
+  // Count errors as loaded to prevent infinite loading state
+  handleImageLoad(wishlistId)
+}
+
+// Update getItemImage to handle errors better
 function getItemImage(item: any): string {
   if (item.image_url) return item.image_url
   if (item.image) return item.image
-  return '/placeholder-gift.png'
+  return '/placeholder-gift.png' // Make sure this placeholder exists in public folder
 }
 </script>
 
@@ -455,5 +517,40 @@ function getItemImage(item: any): string {
   min-width: 20px;
   height: 20px;
   margin-left: 4px;
+}
+
+/* Update grid styles */
+.wishlist-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+  grid-auto-flow: row dense; /* Ensures dense packing */
+  padding: 16px;
+}
+
+/* Ensure consistent card heights */
+:deep(.v-card) {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+:deep(.v-card__text) {
+  flex-grow: 1;
+}
+
+/* Preview grid styles */
+.preview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  gap: 4px;
+  aspect-ratio: 1;
+}
+
+.preview-grid :deep(.v-img) {
+  aspect-ratio: 1;
+  width: 100%;
+  height: 100%;
 }
 </style>

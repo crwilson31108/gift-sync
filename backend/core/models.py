@@ -56,7 +56,14 @@ class WishListItem(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def save(self, *args, **kwargs):
-        # Automatically set size based on price
+        # Clear image_url if uploading a new image file
+        if self.image and self.image_url:
+            self.image_url = ''
+        # Clear image if setting a new image_url
+        elif self.image_url and self.image:
+            self.image = None
+            
+        # Size logic...
         if self.price is not None:
             if self.price <= 25:
                 self.size = 'Stocking'
