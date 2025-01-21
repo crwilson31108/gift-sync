@@ -1,45 +1,47 @@
 <template>
   <v-card class="wishlist-card" :loading="loading">
-    <!-- Loading skeleton -->
-    <template v-if="loading">
-      <v-skeleton-loader
-        type="image, article"
-        :loading="true"
-      ></v-skeleton-loader>
-    </template>
-
-    <template v-else>
-      <!-- Preview photos grid -->
-      <div class="preview-container">
+    <!-- Preview photos grid -->
+    <div class="preview-container">
+      <template v-if="wishlist.items.length > 0">
         <slot name="preview"></slot>
-      </div>
+      </template>
+      <template v-else>
+        <div class="empty-preview">
+          <v-icon
+            icon="mdi-gift-outline"
+            size="32"
+            class="mr-2"
+          />
+          No items yet
+        </div>
+      </template>
+    </div>
 
-      <!-- Card Content -->
-      <v-card-title class="d-flex justify-space-between align-center">
-        <span class="text-truncate">{{ wishlist.name }}</span>
-        <v-chip
-          size="small"
-          :color="getStatusColor(wishlist)"
-        >
-          {{ getItemCount(wishlist) }}
-        </v-chip>
-      </v-card-title>
+    <!-- Card Content -->
+    <v-card-title class="d-flex justify-space-between align-center">
+      <span class="text-truncate">{{ wishlist.name }}</span>
+      <v-chip
+        size="small"
+        :color="getStatusColor(wishlist)"
+      >
+        {{ getItemCount(wishlist) }}
+      </v-chip>
+    </v-card-title>
 
-      <v-card-subtitle>
-        {{ wishlist.owner.full_name }}
-      </v-card-subtitle>
+    <v-card-subtitle>
+      {{ wishlist.owner.full_name }}
+    </v-card-subtitle>
 
-      <!-- Actions -->
-      <v-card-actions>
-        <v-spacer />
-        <slot name="actions"></slot>
-      </v-card-actions>
-    </template>
+    <!-- Actions -->
+    <v-card-actions>
+      <v-spacer />
+      <slot name="actions"></slot>
+    </v-card-actions>
   </v-card>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref } from 'vue'
 import type { WishList } from '@/services/wishlists'
 import { useAppStore } from '@/stores/useAppStore'
 
@@ -48,33 +50,7 @@ const props = defineProps<{
 }>()
 
 const store = useAppStore()
-const loading = ref(true)
-const imagesLoaded = ref(0)
-const totalImages = computed(() => props.wishlist.items.length)
-
-// Track image loading
-function handleImageLoad() {
-  imagesLoaded.value++
-  if (imagesLoaded.value >= totalImages.value) {
-    loading.value = false
-  }
-}
-
-// Reset loading state when wishlist changes
-watch(() => props.wishlist, () => {
-  loading.value = true
-  imagesLoaded.value = 0
-  
-  // If no images, show content immediately
-  if (totalImages.value === 0) {
-    loading.value = false
-  }
-}, { immediate: true })
-
-// Expose image load handler to parent
-defineExpose({
-  handleImageLoad
-})
+const loading = ref(false)
 
 function getItemCount(wishlist: WishList) {
   // If user is the owner, just show total items
@@ -107,33 +83,101 @@ function getStatusColor(wishlist: WishList) {
 <style scoped>
 .wishlist-card {
   transition: transform 0.2s;
-  min-height: 200px;
   display: flex;
   flex-direction: column;
+  background: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(var(--v-border-color), 0.12);
+  height: 100%;
 }
 
 .preview-container {
-  aspect-ratio: 1;
+  /* Remove aspect-ratio and other constraints */
+  width: 100%;
+  flex-shrink: 0; /* Prevent container from shrinking */
+  background: rgba(var(--v-theme-surface-variant), 0.12);
+}
+
+/* Update image styles */
+:deep(.v-img) {
+  border-radius: 4px;
   overflow: hidden;
+  background: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(var(--v-border-color), 0.08);
 }
 
-.wishlist-card:hover {
-  transform: translateY(-4px);
+:deep(.v-img__img) {
+  object-fit: cover !important;
+  transition: transform 0.3s ease;
 }
 
-/* Dark mode support */
-:deep(.v-theme--dark) .preview-placeholder {
-  background-color: rgba(255, 255, 255, 0.05);
+/* Hover effect for images */
+:deep(.v-img:hover .v-img__img) {
+  transform: scale(1.05);
+}
+
+/* Loading state styles */
+.preview-container :deep(.v-img.v-img--loading) {
+  background: rgba(var(--v-theme-surface-variant), 0.12);
 }
 
 /* Skeleton loader styles */
 :deep(.v-skeleton-loader__image) {
   aspect-ratio: 1;
   height: auto !important;
+  background: rgba(var(--v-theme-surface-variant), 0.12) !important;
 }
 
 :deep(.v-skeleton-loader__article) {
   flex-grow: 1;
   padding: 16px;
+}
+
+/* Dark theme adjustments */
+:deep(.v-theme--dark) .preview-container {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+:deep(.v-theme--dark) .v-img {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Empty state placeholder */
+.empty-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(var(--v-theme-surface-variant), 0.12);
+  color: rgba(var(--v-theme-on-surface), 0.6);
+  font-size: 0.875rem;
+}
+
+/* Card content styles */
+.card-content {
+  padding: 16px;
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.card-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.title-text {
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: rgb(var(--v-theme-on-surface));
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+  .preview-container {
+    gap: 1px;
+    padding: 1px;
+  }
 }
 </style> 

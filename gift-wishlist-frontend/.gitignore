@@ -1,6 +1,12 @@
 # Logs
 logs
 *.log
+# Python
+*.py[cod]
+__pycache__/
+*.so
+.Python
+*.pyc
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

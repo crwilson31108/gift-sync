@@ -1,15 +1,20 @@
 <template>
-  <v-app v-if="initialized">
-    <component :is="layout">
-      <router-view v-slot="{ Component }">
-        <transition 
-          name="fade"
-          mode="out-in"
-        >
-          <component :is="Component" class="w-full" />
-        </transition>
-      </router-view>
-    </component>
+  <v-app>
+    <!-- Show loading state while initializing -->
+    <div v-if="store.loading || !initialized" class="app-loading">
+      <LoadingAnimation message="Getting things ready..." />
+    </div>
+
+    <!-- Show app content only when loaded and initialized -->
+    <template v-else>
+      <component :is="layout">
+        <router-view v-slot="{ Component }">
+          <transition name="fade" mode="out-in">
+            <component :is="Component" />
+          </transition>
+        </router-view>
+      </component>
+    </template>
   </v-app>
 </template>
 
@@ -22,6 +27,7 @@ import api from '@/services/api'
 import MainLayout from '@/layouts/MainLayout.vue'
 import AuthLayout from '@/layouts/AuthLayout.vue'
 import { useTheme } from 'vuetify'
+import LoadingAnimation from '@/components/LoadingAnimation.vue'
 
 const store = useAppStore()
 const route = useRoute()
@@ -36,6 +42,8 @@ const isPublicRoute = (path: string) =>
 
 // Determine which layout to use
 const layout = computed(() => {
+  // Only return a layout when initialized
+  if (!initialized.value) return null
   return isPublicRoute(route.path) ? AuthLayout : MainLayout
 })
 
@@ -99,6 +107,7 @@ watch(() => store.isDarkTheme, (isDark) => {
   theme.global.name.value = isDark ? 'dark' : 'light'
 }, { immediate: true })
 </script>
+
 <style>
 .loading-screen {
   @apply min-h-screen flex items-center justify-center bg-light-bg dark:bg-dark-bg;
@@ -166,6 +175,64 @@ body,
 
 .v-theme--dark {
   --v-theme-overlay-multiplier: 0.9;
+}
+
+/* Add to your existing styles */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.5s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+.slide-fade-enter-active {
+  transition: all 0.3s ease-out;
+}
+
+.slide-fade-leave-active {
+  transition: all 0.3s cubic-bezier(1, 0.5, 0.8, 1);
+}
+
+.slide-fade-enter-from,
+.slide-fade-leave-to {
+  transform: translateY(20px);
+  opacity: 0;
+}
+
+/* Smooth page transitions */
+.page-enter-active,
+.page-leave-active {
+  transition: opacity 0.5s ease;
+}
+
+.page-enter-from,
+.page-leave-to {
+  opacity: 0;
+}
+
+/* Ensure smooth theme transitions */
+* {
+  transition-property: color, background-color, border-color;
+  transition-duration: 0.3s;
+  transition-timing-function: ease;
+}
+</style>
+
+<style scoped>
+.app-loading {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(var(--v-theme-background));
+  z-index: 9999;
 }
 </style>
 

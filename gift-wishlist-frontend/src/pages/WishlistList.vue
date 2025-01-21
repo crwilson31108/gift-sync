@@ -91,22 +91,18 @@
               v-for="wishlist in sortedMyWishlists"
               :key="wishlist.id"
               :wishlist="wishlist"
-              ref="wishlistCards"
               @edit="openEditDialog"
               @delete="confirmDelete"
             >
               <template #preview>
-                <div class="grid grid-cols-2 gap-1 mb-2">
+                <div class="wishlist-preview-grid">
                   <v-img
                     v-for="item in getTopPriorityItems(wishlist.items, 4)"
                     :key="item.id"
                     :src="getItemImage(item)"
                     :alt="item.title"
                     cover
-                    class="rounded"
-                    height="96"
-                    @load="handleImageLoad(wishlist.id)"
-                    @error="handleImageError(wishlist.id)"
+                    class="preview-image"
                   >
                     <template v-slot:placeholder>
                       <div class="d-flex align-center justify-center fill-height">
@@ -142,20 +138,16 @@
               v-for="wishlist in sortedOthersWishlists"
               :key="wishlist.id"
               :wishlist="wishlist"
-              ref="wishlistCards"
             >
               <template #preview>
-                <div class="grid grid-cols-2 gap-1 mb-2">
+                <div class="wishlist-preview-grid">
                   <v-img
                     v-for="item in getTopPriorityItems(wishlist.items, 4)"
                     :key="item.id"
                     :src="getItemImage(item)"
                     :alt="item.title"
                     cover
-                    class="rounded"
-                    height="96"
-                    @load="handleImageLoad(wishlist.id)"
-                    @error="handleImageError(wishlist.id)"
+                    class="preview-image"
                   >
                     <template v-slot:placeholder>
                       <div class="d-flex align-center justify-center fill-height">
@@ -318,9 +310,6 @@ const deleteDialog = ref({
   wishlist: null as WishList | null
 })
 
-// Add refs for card management
-const wishlistCards = ref<InstanceType<typeof WishlistCard>[]>([])
-
 // Add computed properties for sorted wishlists
 const sortedMyWishlists = computed(() => 
   [...myWishlists.value].sort((a, b) => {
@@ -461,21 +450,6 @@ function getTopPriorityItems(items: any[], count: number = 4) {
     .slice(0, count)
 }
 
-// Add image handling functions
-function handleImageLoad(wishlistId: number) {
-  const card = wishlistCards.value.find(
-    card => card.$props.wishlist.id === wishlistId
-  )
-  if (card) {
-    card.handleImageLoad()
-  }
-}
-
-function handleImageError(wishlistId: number) {
-  // Count errors as loaded to prevent infinite loading state
-  handleImageLoad(wishlistId)
-}
-
 // Update getItemImage to handle errors better
 function getItemImage(item: any): string {
   if (item.image_url) return item.image_url
@@ -522,35 +496,80 @@ function getItemImage(item: any): string {
 /* Update grid styles */
 .wishlist-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 16px;
-  grid-auto-flow: row dense; /* Ensures dense packing */
-  padding: 16px;
-}
-
-/* Ensure consistent card heights */
-:deep(.v-card) {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-
-:deep(.v-card__text) {
-  flex-grow: 1;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 24px;
+  padding: 24px;
 }
 
 /* Preview grid styles */
-.preview-grid {
+.wishlist-preview-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   grid-template-rows: repeat(2, 1fr);
-  gap: 4px;
-  aspect-ratio: 1;
-}
-
-.preview-grid :deep(.v-img) {
+  gap: 2px;
   aspect-ratio: 1;
   width: 100%;
+  background: rgba(var(--v-theme-surface-variant), 0.12);
+}
+
+.preview-image {
+  position: relative;
+  width: 100%;
   height: 100%;
+}
+
+:deep(.preview-image .v-img) {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+:deep(.preview-image .v-img__img) {
+  object-fit: cover !important;
+  transition: transform 0.3s ease;
+}
+
+/* Card styles */
+:deep(.v-card) {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+:deep(.v-card-title) {
+  padding: 16px;
+}
+
+:deep(.v-card-subtitle) {
+  padding: 0 16px 16px;
+}
+
+:deep(.v-card-actions) {
+  padding: 8px 16px;
+}
+
+/* Empty state */
+.wishlist-preview-grid:empty {
+  min-height: 280px;
+}
+
+/* Dark theme adjustments */
+:deep(.v-theme--dark) .wishlist-preview-grid {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+  .wishlist-grid {
+    gap: 16px;
+    padding: 16px;
+  }
+
+  .wishlist-preview-grid {
+    gap: 1px;
+  }
 }
 </style>

@@ -13,6 +13,9 @@ import router from './router'
 // Vuetify
 import vuetify from './plugins/vuetify'
 
+// Stores
+import { useAppStore } from './stores/useAppStore'
+
 // Initialize dark mode based on system preference
 if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
   document.documentElement.classList.add('dark')
@@ -31,5 +34,31 @@ app.use(router)
 // Install Vuetify
 app.use(vuetify)
 
-// Mount the app
-app.mount('#app')
+// Initialize store
+const store = useAppStore()
+
+// Setup navigation guards
+router.beforeEach(async (to, from, next) => {
+  // Wait for initial auth check if not completed
+  if (store.loading) {
+    await store.initializeApp()
+  }
+
+  const isAuthenticated = !!store.currentUser
+  const requiresAuth = to.meta.requiresAuth !== false
+
+  if (requiresAuth && !isAuthenticated) {
+    // Save intended destination
+    localStorage.setItem('redirectPath', to.fullPath)
+    next('/login')
+  } else if (to.path === '/login' && isAuthenticated) {
+    next('/')
+  } else {
+    next()
+  }
+})
+
+// Mount app after initialization
+store.initializeApp().then(() => {
+  app.mount('#app')
+})
