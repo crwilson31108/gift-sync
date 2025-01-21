@@ -186,23 +186,29 @@ class ProductScraper:
             )
             return self._parse_content(driver.page_source)
 
-    def scrape(self) -> Dict:
-        """
-        Attempt to scrape product data, falling back to manual data if scraping fails
-        """
+    def scrape(self):
         try:
             # Try regular requests first
             data = self._scrape_with_requests()
-            if not any(data.values()):
-                # If no data found, try with Selenium
-                data = self._try_selenium()
+            if data:
+                return data
 
-            # Merge with manual data, preferring manual data when available
-            return self._merge_with_manual_data(data)
+            # If regular request fails, try cloudscraper
+            data = self._scrape_with_cloudscraper()
+            if data:
+                return data
+
+            # If both fail, return manual data if available
+            if self.manual_data:
+                return self.manual_data
+
+            raise Exception("Failed to scrape URL")
         except Exception as e:
-            logger.error(f"Error scraping {self.url}: {str(e)}")
-            # Return manual data if available, otherwise empty dict
-            return self.manual_data.to_dict() if self.manual_data else {}
+            logger.error(f"Scraping error: {str(e)}")
+            # Return manual data if available, otherwise re-raise
+            if self.manual_data:
+                return self.manual_data
+            raise
 
     def _merge_with_manual_data(self, scraped_data: Dict) -> Dict:
         """
