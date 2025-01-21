@@ -256,3 +256,28 @@ DEFAULT_FROM_EMAIL = "Gift Sync <crwilson311@gmail.com>"
 
 # Add this to help with media serving
 WHITENOISE_MANIFEST_STRICT = False
+
+# Add to your settings.py
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'core.utils.scraper': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
+    },
+}

@@ -21,6 +21,9 @@ from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 import os
 from django.contrib.auth import get_user_model
+import logging
+
+logger = logging.getLogger(__name__)
 
 class UserViewSet(viewsets.ModelViewSet):
     serializer_class = UserSerializer
@@ -279,29 +282,27 @@ class WishListItemViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['POST'])
     def scrape_url(self, request):
-        url = request.data.get('url')
-        if not url:
-            return Response(
-                {'error': 'URL is required'}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
         try:
+            url = request.data.get('url')
             scraper = ProductScraper(url)
-            data = scraper.scrape()
-
-            if not data:
-                return Response(
-                    {'error': 'Failed to scrape URL'}, 
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
+            data, error = scraper.scrape()
+            
+            if error:
+                logger.error(f"Scraping error for URL {url}: {error}")
+                return Response({
+                    'error': 'Scraping failed',
+                    'details': error,
+                    'url': url
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
             return Response(data)
         except Exception as e:
-            return Response(
-                {'error': str(e)}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            logger.exception(f"Unexpected error while scraping {url}")
+            return Response({
+                'error': 'Unexpected error occurred',
+                'message': str(e),
+                'url': url
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=['POST'])
     def reorder_items(self, request):
