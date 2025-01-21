@@ -2,7 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse, urljoin
 import re
-from typing import Dict, Optional, List, Union
+from typing import Dict, Optional, List, Union, Tuple
 import json
 import logging
 from time import sleep
@@ -24,6 +24,23 @@ import os
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
+
+class ScraperException(Exception):
+    """Custom exception for scraper errors with detailed information"""
+    def __init__(self, message: str, details: Dict = None, original_error: Exception = None):
+        self.message = message
+        self.details = details or {}
+        self.original_error = original_error
+        super().__init__(self.message)
+
+    def to_dict(self) -> Dict:
+        error_dict = {
+            'message': self.message,
+            'details': self.details
+        }
+        if self.original_error:
+            error_dict['original_error'] = str(self.original_error)
+        return error_dict
 
 @dataclass
 class ManualProductData:
@@ -199,42 +216,97 @@ class ProductScraper:
         """Enhanced Selenium attempt with better error handling"""
         try:
             with self.get_driver() as driver:
+                # Log Chrome version and capabilities
+                logger.info(f"Chrome version: {driver.capabilities['browserVersion']}")
+                logger.info(f"Chrome capabilities: {driver.capabilities}")
+                
                 driver.get(self.url)
                 try:
                     WebDriverWait(driver, 10).until(
                         EC.presence_of_element_located((By.TAG_NAME, "body"))
                     )
-                    return self._parse_content(driver.page_source)
+                    page_source = driver.page_source
+                    if not page_source:
+                        raise ScraperException("Empty page source received")
+                    
+                    data = self._parse_content(page_source)
+                    if not any(data.values()):
+                        raise ScraperException("No data extracted from page")
+                    
+                    return data
                 except Exception as e:
-                    logger.error(f"Selenium wait error: {str(e)}")
+                    logger.error(f"Selenium wait/parse error: {str(e)}")
+                    # Try to get page source even if wait failed
                     return self._parse_content(driver.page_source)
         except Exception as e:
             logger.error(f"Selenium error: {str(e)}")
-            return {}
+            if 'driver' in locals():
+                logger.error(f"Chrome logs: {driver.get_log('browser')}")
+            raise ScraperException("Selenium scraping failed", 
+                                 details={'original_error': str(e)})
 
-    def scrape(self):
+    def scrape(self) -> Tuple[Dict, Optional[Dict]]:
+        """
+        Scrape the URL and return both the data and any error information
+        Returns: (data_dict, error_dict)
+        """
+        error_details = {
+            'url': self.url,
+            'methods_tried': [],
+            'method_errors': {}
+        }
+        
         try:
             # Try regular requests first
-            data = self._scrape_with_requests()
-            if data:
-                return data
+            error_details['methods_tried'].append('requests')
+            try:
+                data = self._scrape_with_requests()
+                if data:
+                    return data, None
+            except Exception as e:
+                error_details['method_errors']['requests'] = str(e)
+                logger.error(f"Requests method failed: {str(e)}")
 
-            # If regular request fails, try cloudscraper
-            data = self._scrape_with_cloudscraper()
-            if data:
-                return data
+            # Try cloudscraper
+            error_details['methods_tried'].append('cloudscraper')
+            try:
+                data = self._scrape_with_cloudscraper()
+                if data:
+                    return data, None
+            except Exception as e:
+                error_details['method_errors']['cloudscraper'] = str(e)
+                logger.error(f"Cloudscraper method failed: {str(e)}")
 
-            # If both fail, return manual data if available
+            # Try selenium
+            error_details['methods_tried'].append('selenium')
+            try:
+                data = self._try_selenium()
+                if data:
+                    return data, None
+            except Exception as e:
+                error_details['method_errors']['selenium'] = str(e)
+                logger.error(f"Selenium method failed: {str(e)}")
+
+            # If we have manual data, return it
             if self.manual_data:
-                return self.manual_data
+                return self.manual_data.to_dict(), None
 
-            raise Exception("Failed to scrape URL")
+            # If all methods failed, raise exception with details
+            raise ScraperException(
+                "All scraping methods failed",
+                details=error_details
+            )
         except Exception as e:
-            logger.error(f"Scraping error: {str(e)}")
-            # Return manual data if available, otherwise re-raise
+            error_dict = {
+                'error': str(e),
+                'details': error_details if isinstance(e, ScraperException) else None
+            }
+            logger.error(f"Scraping failed: {error_dict}")
+            
+            # Return manual data if available, otherwise return error
             if self.manual_data:
-                return self.manual_data
-            raise
+                return self.manual_data.to_dict(), error_dict
+            return None, error_dict
 
     def _merge_with_manual_data(self, scraped_data: Dict) -> Dict:
         """
