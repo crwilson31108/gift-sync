@@ -98,7 +98,7 @@
           <v-btn
             variant="text"
             prepend-icon="mdi-gift"
-            :to="`/wishlists?user=${member.id}`"
+            @click="handleWishlistView(member)"
           >
             View Wishlists
           </v-btn>
@@ -109,11 +109,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
+import { useRouter } from 'vue-router'
+import { useToast } from 'vue-toastification'
 import { usersService } from '@/services/users'
 import { familiesService, type Family } from '@/services/families'
 import type { User } from '@/types'
 import { useDebounce } from '@/composables/useDebounce'
+import { wishlistsService } from '@/services/wishlists'
+
+const router = useRouter()
+const toast = useToast()
 
 const members = ref<User[]>([])
 const families = ref<Family[]>([])
@@ -168,5 +174,21 @@ function getMemberFamilies(member: User) {
   return families.value.filter(f => 
     f.members.some(m => m.id === member.id)
   )
+}
+
+async function handleWishlistView(member: User) {
+  try {
+    // Check if user has a wishlist
+    const wishlists = await wishlistsService.getUserWishlists(member.id)
+    
+    if (wishlists && wishlists.length > 0) {
+      router.push(`/wishlists/${member.id}`)
+    } else {
+      toast.info(`${member.username} hasn't created a wishlist yet`)
+    }
+  } catch (error) {
+    console.error('Error checking wishlist:', error)
+    toast.error('Unable to check wishlist availability')
+  }
 }
 </script> 

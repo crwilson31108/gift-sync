@@ -83,14 +83,6 @@
                   </p>
                 </div>
               </div>
-              <v-btn
-                v-if="member.id !== currentUser?.id"
-                icon="mdi-close"
-                variant="text"
-                size="small"
-                color="error"
-                @click="confirmRemoveMember(member)"
-              />
             </div>
           </div>
         </v-card-text>
@@ -133,37 +125,6 @@
           </v-card-actions>
         </v-card>
       </v-dialog>
-
-      <!-- Remove Member Confirmation -->
-      <v-dialog
-        v-model="removeMemberDialog.show"
-        max-width="400"
-      >
-        <v-card>
-          <v-card-title class="text-error">
-            Remove Member
-          </v-card-title>
-          <v-card-text>
-            Are you sure you want to remove {{ removeMemberDialog.member?.username }} from this family?
-          </v-card-text>
-          <v-card-actions>
-            <v-spacer />
-            <v-btn
-              variant="text"
-              @click="removeMemberDialog.show = false"
-            >
-              Cancel
-            </v-btn>
-            <v-btn
-              color="error"
-              :loading="loading"
-              @click="handleRemoveMember"
-            >
-              Remove
-            </v-btn>
-          </v-card-actions>
-        </v-card>
-      </v-dialog>
     </div>
   </div>
 </template>
@@ -192,11 +153,6 @@ const addMemberDialog = ref({
   selectedUser: null as number | null
 })
 
-const removeMemberDialog = ref({
-  show: false,
-  member: null as User | null
-})
-
 onMounted(async () => {
   await loadFamily()
 })
@@ -218,13 +174,6 @@ function openAddMemberDialog() {
   addMemberDialog.value = {
     show: true,
     selectedUser: null
-  }
-}
-
-function confirmRemoveMember(member: User) {
-  removeMemberDialog.value = {
-    show: true,
-    member
   }
 }
 
@@ -258,24 +207,6 @@ async function handleAddMember() {
     addMemberDialog.value.show = false
   } catch (err) {
     console.error('Failed to add member:', err)
-  } finally {
-    loading.value = false
-  }
-}
-
-async function handleRemoveMember() {
-  if (!family.value || !removeMemberDialog.value.member) return
-
-  try {
-    loading.value = true
-    await familiesService.removeMember(
-      family.value.id,
-      removeMemberDialog.value.member.id
-    )
-    await loadFamily()
-    removeMemberDialog.value.show = false
-  } catch (err) {
-    console.error('Failed to remove member:', err)
   } finally {
     loading.value = false
   }

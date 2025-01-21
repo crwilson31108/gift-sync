@@ -60,8 +60,8 @@ const routes: RouteRecordRaw[] = [
   },
   { 
     path: '/wishlists/:id', 
-    name: 'WishlistDetail', 
-    component: WishlistDetail,
+    name: 'UserWishlist', 
+    component: () => import('@/pages/WishlistDetail.vue'),
     meta: { requiresAuth: true }
   },
   {

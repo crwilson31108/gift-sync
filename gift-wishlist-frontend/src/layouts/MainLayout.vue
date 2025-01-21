@@ -368,8 +368,8 @@ const recentNotifications = computed(() =>
 // Helper functions
 function getUserName(userId: number) {
   if (userId === store.currentUser?.id) return 'You'
-  const user = store.users?.find(u => u.id === userId)
-  return user?.full_name || 'Unknown'
+  const user = store.users.find(u => u.id === userId)
+  return user?.username || 'Unknown'
 }
 
 function getUserInitials(userId: number): string {
@@ -386,7 +386,7 @@ function getNotificationText(notification: any) {
     case 'new_item':
       return 'added a new item to their wishlist'
     case 'purchased':
-      return 'purchased an item from wishlist'
+      return 'purchased an item from a wishlist'
     case 'wishlist_created':
       return 'created a new wishlist'
     default:

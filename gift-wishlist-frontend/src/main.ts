@@ -16,6 +16,10 @@ import vuetify from './plugins/vuetify'
 // Stores
 import { useAppStore } from './stores/useAppStore'
 
+// Toast
+import Toast from 'vue-toastification'
+import 'vue-toastification/dist/index.css'
+
 // Initialize dark mode based on system preference
 if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
   document.documentElement.classList.add('dark')
@@ -33,6 +37,22 @@ app.use(router)
 
 // Install Vuetify
 app.use(vuetify)
+
+// Install Toast
+app.use(Toast, {
+  position: 'top-right',
+  timeout: 3000,
+  closeOnClick: true,
+  pauseOnFocusLoss: true,
+  pauseOnHover: true,
+  draggable: true,
+  draggablePercent: 0.6,
+  showCloseButtonOnHover: false,
+  hideProgressBar: true,
+  closeButton: 'button',
+  icon: true,
+  rtl: false
+})
 
 // Initialize store
 const store = useAppStore()
