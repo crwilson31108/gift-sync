@@ -64,10 +64,12 @@ class ProductScraper:
         self.domain = urlparse(url).netloc
         self.manual_data = manual_data
         self.ua = UserAgent(browsers=['chrome', 'firefox', 'safari'])
+        
+        # Enhanced headers with more realistic values
         self.headers = {
             'User-Agent': self.ua.random,
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
             'Accept-Encoding': 'gzip, deflate, br',
             'DNT': '1',
             'Connection': 'keep-alive',
@@ -76,28 +78,37 @@ class ProductScraper:
             'Sec-Fetch-Mode': 'navigate',
             'Sec-Fetch-Site': 'none',
             'Sec-Fetch-User': '?1',
+            'sec-ch-ua': '"Google Chrome";v="119", "Chromium";v="119", "Not?A_Brand";v="24"',
+            'sec-ch-ua-mobile': '?0',
+            'sec-ch-ua-platform': '"Windows"',
             'Pragma': 'no-cache',
             'Cache-Control': 'no-cache',
         }
-        self.max_retries = 3
-        self.retry_delay = 2
         
-        # Initialize cloudscraper
+        # Increased retries and delay
+        self.max_retries = 5
+        self.retry_delay = 3
+        
+        # Initialize cloudscraper with more browser-like behavior
         self.scraper = cloudscraper.create_scraper(
             browser={
                 'browser': 'chrome',
                 'platform': 'windows',
+                'desktop': True,
                 'mobile': False
-            }
+            },
+            delay=3
         )
 
     def _get_session(self):
-        """Create a session with retry strategy"""
+        """Create a session with enhanced retry strategy"""
         session = requests.Session()
         retry_strategy = Retry(
-            total=3,
-            backoff_factor=1,
+            total=5,
+            backoff_factor=1.5,
             status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=["HEAD", "GET", "OPTIONS", "POST"],
+            respect_retry_after_header=True
         )
         adapter = HTTPAdapter(max_retries=retry_strategy)
         session.mount("https://", adapter)
@@ -142,9 +153,9 @@ class ProductScraper:
 
     @contextmanager
     def get_driver(self):
-        """Enhanced Selenium driver setup"""
+        """Enhanced Selenium driver setup with more anti-detection measures"""
         options = Options()
-        options.add_argument('--headless=new')  # Updated headless mode
+        options.add_argument('--headless=new')
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
         options.add_argument(f'user-agent={self.ua.random}')
@@ -152,8 +163,10 @@ class ProductScraper:
         options.add_argument('--disable-extensions')
         options.add_argument('--disable-gpu')
         options.add_argument('--window-size=1920,1080')
+        options.add_argument('--start-maximized')
+        options.add_argument('--disable-infobars')
         
-        # Add more stealth
+        # Additional stealth options
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
         options.add_experimental_option('useAutomationExtension', False)
         
@@ -162,14 +175,19 @@ class ProductScraper:
             options=options
         )
         
-        # Execute stealth scripts
+        # Execute CDP commands to make detection harder
         driver.execute_cdp_cmd('Network.setUserAgentOverride', {
             "userAgent": self.ua.random,
             "platform": "Windows",
+            "acceptLanguage": "en-US,en;q=0.9"
         })
         
+        # Additional stealth scripts
         driver.execute_script(
             "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
+        )
+        driver.execute_script(
+            "Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]})"
         )
         
         try:
@@ -235,23 +253,32 @@ class ProductScraper:
         return merged_data
 
     def _parse_content(self, html_content: str) -> Dict:
-        """Parse HTML content and extract product information"""
+        """Enhanced parsing with site-specific handling"""
         soup = BeautifulSoup(html_content, 'lxml')
         
-        # Try to extract structured data first
+        # Site-specific handling
+        if 'amazon' in self.domain:
+            amazon_data = self._get_amazon_data(soup)
+            if amazon_data:
+                amazon_data['all_images'] = self._get_all_images(soup)
+                return amazon_data
+        
+        # Try structured data first
         structured_data = self._get_structured_data(soup)
         if structured_data:
             structured_data['all_images'] = self._get_all_images(soup)
             return structured_data
-
+        
         # Fallback to regular scraping
-        return {
+        scraped_data = {
             'title': self._get_title(soup),
             'price': self._get_price(soup),
             'image_url': self._get_image(soup),
             'description': self._get_description(soup),
             'all_images': self._get_all_images(soup)
         }
+        
+        return scraped_data
 
     def _get_structured_data(self, soup: BeautifulSoup) -> Optional[Dict]:
         """Extract product info from structured data if available"""
@@ -449,4 +476,69 @@ class ProductScraper:
             except:
                 continue
 
-        return list(images) 
+        return list(images)
+
+    def _get_amazon_data(self, soup: BeautifulSoup) -> Dict:
+        """Special handling for Amazon pages"""
+        data = {}
+        
+        # Amazon title
+        title_element = soup.find('span', {'id': 'productTitle'})
+        if title_element:
+            data['title'] = title_element.text.strip()
+        
+        # Amazon price - multiple possible locations
+        price_elements = [
+            soup.find('span', {'class': 'a-price-whole'}),
+            soup.find('span', {'id': 'priceblock_ourprice'}),
+            soup.find('span', {'id': 'priceblock_dealprice'}),
+            soup.find('span', {'class': 'a-offscreen'})
+        ]
+        
+        for element in price_elements:
+            if element:
+                price_text = element.text.strip()
+                try:
+                    # Extract numbers from price text
+                    price = float(re.sub(r'[^\d.]', '', price_text))
+                    data['price'] = price
+                    break
+                except ValueError:
+                    continue
+        
+        # Amazon images
+        image_element = soup.find('img', {'id': 'landingImage'})
+        if image_element:
+            data['image_url'] = image_element.get('data-old-hires') or image_element.get('src')
+        
+        # Amazon description
+        description_element = soup.find('div', {'id': 'productDescription'})
+        if description_element:
+            data['description'] = description_element.text.strip()
+        
+        return data
+
+    def _extract_structured_price(self, soup: BeautifulSoup) -> Optional[float]:
+        """Extract price from structured data"""
+        for script in soup.find_all('script', type='application/ld+json'):
+            try:
+                data = json.loads(script.string)
+                if isinstance(data, list):
+                    data = data[0]
+                
+                # Check for price in offers
+                if 'offers' in data:
+                    offers = data['offers']
+                    if isinstance(offers, list):
+                        offers = offers[0]
+                    if isinstance(offers, dict):
+                        price = offers.get('price')
+                        if price:
+                            return float(price)
+                
+                # Direct price property
+                if 'price' in data:
+                    return float(data['price'])
+            except:
+                continue
+        return None 
