@@ -1,304 +1,306 @@
 <template>
-  <v-app :theme="store.isDarkTheme ? 'dark' : 'light'" class="min-h-screen">
-    <!-- Main Sidebar -->
-    <v-navigation-drawer
-      v-if="!$vuetify.display.mobile"
-      v-model="showSidebar"
-      :rail="sidebarMini"
-      permanent
-      :class="[
-        store.isDarkTheme ? 'bg-dark-surface border-dark-border' : 'bg-light-surface border-light-border',
-        'border-r border-opacity-10 h-screen'
-      ]"
-      :rail-width="80"
-      width="280"
-    >
-      <!-- Logo Section -->
-      <div class="px-4 py-3">
-        <div :class="sidebarMini ? 'flex flex-col items-center' : 'flex items-center justify-between'">
-          <template v-if="sidebarMini">
-            <img 
-              src="@/assets/logo/logo-mini.png" 
-              alt="Gift Sync"
-              class="w-12 h-12 object-contain object-center mb-2"
-              @error="handleImageError"
-            />
-            <v-btn
-              icon
-              variant="text"
-              size="small"
-              class="text-light-subtle dark:text-dark-subtle mt-2"
-              @click.stop="sidebarMini = !sidebarMini"
-            >
-              <v-icon>mdi-chevron-right</v-icon>
-            </v-btn>
-          </template>
-          <template v-else>
-            <img 
-              src="@/assets/logo/logo.png" 
-              alt="Gift Sync Logo"
-              class="w-40 h-auto object-contain object-center"
-              @error="handleImageError"
-            />
-            <v-btn
-              icon
-              variant="text"
-              size="small"
-              class="text-light-subtle dark:text-dark-subtle"
-              @click.stop="sidebarMini = !sidebarMini"
-            >
-              <v-icon>mdi-chevron-left</v-icon>
-            </v-btn>
-          </template>
+  <div v-if="store.currentUser">
+    <v-app :theme="store.isDarkTheme ? 'dark' : 'light'" class="min-h-screen">
+      <!-- Main Sidebar -->
+      <v-navigation-drawer
+        v-if="!$vuetify.display.mobile"
+        v-model="showSidebar"
+        :rail="sidebarMini"
+        permanent
+        :class="[
+          store.isDarkTheme ? 'bg-dark-surface border-dark-border' : 'bg-light-surface border-light-border',
+          'border-r border-opacity-10 h-screen'
+        ]"
+        :rail-width="80"
+        width="280"
+      >
+        <!-- Logo Section -->
+        <div class="px-4 py-3">
+          <div :class="sidebarMini ? 'flex flex-col items-center' : 'flex items-center justify-between'">
+            <template v-if="sidebarMini">
+              <img 
+                src="@/assets/logo/logo-mini.png" 
+                alt="Gift Sync"
+                class="w-12 h-12 object-contain object-center mb-2"
+                @error="handleImageError"
+              />
+              <v-btn
+                icon
+                variant="text"
+                size="small"
+                class="text-light-subtle dark:text-dark-subtle mt-2"
+                @click.stop="sidebarMini = !sidebarMini"
+              >
+                <v-icon>mdi-chevron-right</v-icon>
+              </v-btn>
+            </template>
+            <template v-else>
+              <img 
+                src="@/assets/logo/logo.png" 
+                alt="Gift Sync Logo"
+                class="w-40 h-auto object-contain object-center"
+                @error="handleImageError"
+              />
+              <v-btn
+                icon
+                variant="text"
+                size="small"
+                class="text-light-subtle dark:text-dark-subtle"
+                @click.stop="sidebarMini = !sidebarMini"
+              >
+                <v-icon>mdi-chevron-left</v-icon>
+              </v-btn>
+            </template>
+          </div>
         </div>
-      </div>
 
-      <v-divider class="border-accent/10 my-2" />
+        <v-divider class="border-accent/10 my-2" />
 
-      <!-- Navigation Links -->
-      <v-list class="px-2">
-        <v-list-item
-          v-for="item in menuItems"
+        <!-- Navigation Links -->
+        <v-list class="px-2">
+          <v-list-item
+            v-for="item in menuItems"
+            :key="item.path"
+            :to="item.path"
+            :value="item.path"
+            :exact="item.path === '/'"
+            class="mb-1 rounded-lg text-light-text dark:text-dark-text hover:bg-light-surface/80 dark:hover:bg-dark-surface/80"
+            active-class="bg-primary/10 text-primary dark:text-primary"
+          >
+            <template v-slot:prepend>
+              <v-icon 
+                :icon="item.icon" 
+                class="text-light-subtle dark:text-dark-subtle"
+                :class="{ 'text-primary dark:text-primary': $route.path === item.path }"
+              />
+            </template>
+            <v-list-item-title>{{ item.title }}</v-list-item-title>
+          </v-list-item>
+        </v-list>
+
+        <!-- Bottom Actions -->
+        <template v-slot:append>
+          <div class="px-4 py-3">
+            <v-divider class="border-accent/10 mb-3" />
+            <div class="flex items-center space-x-3">
+              <v-avatar
+                :size="sidebarMini ? 40 : 45"
+                color="primary"
+              >
+                <v-img
+                  v-if="store.currentUser?.avatar"
+                  :src="store.currentUser.avatar"
+                  alt="User Avatar"
+                />
+                <span v-else class="text-white text-lg">
+                  {{ userInitials }}
+                </span>
+              </v-avatar>
+              <div v-if="!sidebarMini" class="flex-1 min-w-0">
+                <p class="text-sm font-medium text-light-text dark:text-dark-text truncate">
+                  {{ store.currentUser?.username ?? 'User' }}
+                </p>
+                <p class="text-xs text-light-subtle dark:text-dark-subtle truncate">
+                  {{ store.currentUser?.email ?? 'user@example.com' }}
+                </p>
+              </div>
+              <v-menu
+                location="top"
+                offset="10"
+              >
+                <template v-slot:activator="{ props }">
+                  <v-btn
+                    icon="mdi-dots-vertical"
+                    variant="text"
+                    size="small"
+                    v-bind="props"
+                    class="text-light-subtle dark:text-dark-subtle"
+                  />
+                </template>
+                <v-list width="200" class="py-2">
+                  <v-list-item
+                    prepend-icon="mdi-account-outline"
+                    title="Profile"
+                    to="/profile"
+                  />
+                  <v-divider class="my-2" />
+                  <v-list-item
+                    prepend-icon="mdi-logout"
+                    title="Sign Out"
+                    @click="handleLogout"
+                  />
+                </v-list>
+              </v-menu>
+            </div>
+          </div>
+        </template>
+      </v-navigation-drawer>
+
+      <!-- Top App Bar -->
+      <v-app-bar
+        v-if="!$vuetify.display.mobile"
+        :class="[
+          store.isDarkTheme ? 'bg-dark-surface border-dark-border' : 'bg-light-surface border-light-border',
+          'border-b border-opacity-10'
+        ]"
+        flat
+      >
+        <v-container class="max-w-7xl mx-auto px-4 py-2">
+          <div class="flex items-center justify-between w-full">
+            <!-- Breadcrumbs -->
+            <v-breadcrumbs
+              :items="breadcrumbs"
+              class="px-0"
+            >
+              <template v-slot:divider>
+                <v-icon icon="mdi-chevron-right" size="small"></v-icon>
+              </template>
+              <template v-slot:title="{ item }">
+                <span class="text-light-text dark:text-dark-text">{{ item.title }}</span>
+              </template>
+            </v-breadcrumbs>
+            
+            <!-- Right Actions -->
+            <div class="flex items-center space-x-4">
+              <!-- Notifications -->
+              <v-menu location="bottom end">
+                <template v-slot:activator="{ props }">
+                  <v-btn
+                    icon
+                    v-bind="props"
+                    class="text-light-subtle dark:text-dark-subtle"
+                  >
+                    <v-badge
+                      :content="unreadNotificationsCount"
+                      :model-value="unreadNotificationsCount > 0"
+                      color="primary"
+                    >
+                      <v-icon>mdi-bell</v-icon>
+                    </v-badge>
+                  </v-btn>
+                </template>
+                <v-list width="320" class="py-2">
+                  <v-list-subheader>Notifications</v-list-subheader>
+                  <template v-if="recentNotifications.length">
+                    <v-list-item
+                      v-for="notification in recentNotifications"
+                      :key="notification.id"
+                      :to="getNotificationLink(notification)"
+                      :class="{ 'bg-primary/5': !notification.read }"
+                    >
+                      <template v-slot:prepend>
+                        <v-avatar color="primary" size="32">
+                          <span class="text-xs">{{ getUserInitials(notification.user) }}</span>
+                        </v-avatar>
+                      </template>
+                      <v-list-item-title class="text-sm">
+                        {{ getUserName(notification.user) }}
+                        {{ getNotificationText(notification) }}
+                      </v-list-item-title>
+                      <v-list-item-subtitle class="text-xs">
+                        {{ formatDate(notification.created_at) }}
+                      </v-list-item-subtitle>
+                    </v-list-item>
+                    <v-divider class="my-2" />
+                  </template>
+                  <v-list-item
+                    to="/notifications"
+                    prepend-icon="mdi-bell-outline"
+                  >
+                    View All Notifications
+                  </v-list-item>
+                </v-list>
+              </v-menu>
+              
+              <!-- Theme Toggle -->
+              <v-btn
+                icon
+                @click="handleThemeToggle"
+                class="text-light-subtle dark:text-dark-subtle"
+              >
+                <v-icon>{{ store.isDarkTheme ? 'mdi-weather-night' : 'mdi-weather-sunny' }}</v-icon>
+              </v-btn>
+            </div>
+          </div>
+        </v-container>
+      </v-app-bar>
+
+      <!-- Mobile Top Bar -->
+      <v-app-bar
+        v-if="$vuetify.display.mobile"
+        :class="[
+          store.isDarkTheme ? 'bg-dark-surface border-dark-border' : 'bg-light-surface border-light-border',
+          'border-b border-opacity-10'
+        ]"
+        flat
+      >
+        <v-app-bar-title class="text-primary font-bold">Gift Sync</v-app-bar-title>
+        <div class="flex items-center space-x-2">
+          <!-- Notifications -->
+          <v-btn
+            icon
+            class="text-light-subtle dark:text-dark-subtle"
+          >
+            <v-badge
+              :content="unreadNotificationsCount"
+              color="primary"
+              offset-x="3"
+              offset-y="3"
+            >
+              <v-icon>mdi-bell-outline</v-icon>
+            </v-badge>
+          </v-btn>
+          <!-- Theme Toggle -->
+          <v-btn
+            icon
+            variant="text"
+            @click="handleThemeToggle"
+            class="text-light-subtle dark:text-dark-subtle"
+          >
+            <v-icon>{{ store.isDarkTheme ? 'mdi-weather-sunny' : 'mdi-weather-night' }}</v-icon>
+          </v-btn>
+        </div>
+      </v-app-bar>
+
+      <!-- Mobile Bottom Navigation -->
+      <v-bottom-navigation
+        v-if="$vuetify.display.mobile"
+        v-model="currentRoute"
+        :class="[
+          store.isDarkTheme ? 'bg-dark-surface border-dark-border' : 'bg-light-surface border-light-border',
+          'border-t border-opacity-10'
+        ]"
+        grow
+      >
+        <v-btn
+          v-for="item in menuItems.slice(0, 5)"
           :key="item.path"
           :to="item.path"
           :value="item.path"
-          :exact="item.path === '/'"
-          class="mb-1 rounded-lg text-light-text dark:text-dark-text hover:bg-light-surface/80 dark:hover:bg-dark-surface/80"
-          active-class="bg-primary/10 text-primary dark:text-primary"
-        >
-          <template v-slot:prepend>
-            <v-icon 
-              :icon="item.icon" 
-              class="text-light-subtle dark:text-dark-subtle"
-              :class="{ 'text-primary dark:text-primary': $route.path === item.path }"
-            />
-          </template>
-          <v-list-item-title>{{ item.title }}</v-list-item-title>
-        </v-list-item>
-      </v-list>
-
-      <!-- Bottom Actions -->
-      <template v-slot:append>
-        <div class="px-4 py-3">
-          <v-divider class="border-accent/10 mb-3" />
-          <div class="flex items-center space-x-3">
-            <v-avatar
-              :size="sidebarMini ? 40 : 45"
-              color="primary"
-            >
-              <v-img
-                v-if="store.currentUser?.avatar"
-                :src="store.currentUser.avatar"
-                alt="User Avatar"
-              />
-              <span v-else class="text-white text-lg">
-                {{ userInitials }}
-              </span>
-            </v-avatar>
-            <div v-if="!sidebarMini" class="flex-1 min-w-0">
-              <p class="text-sm font-medium text-light-text dark:text-dark-text truncate">
-                {{ store.currentUser?.username ?? 'User' }}
-              </p>
-              <p class="text-xs text-light-subtle dark:text-dark-subtle truncate">
-                {{ store.currentUser?.email ?? 'user@example.com' }}
-              </p>
-            </div>
-            <v-menu
-              location="top"
-              offset="10"
-            >
-              <template v-slot:activator="{ props }">
-                <v-btn
-                  icon="mdi-dots-vertical"
-                  variant="text"
-                  size="small"
-                  v-bind="props"
-                  class="text-light-subtle dark:text-dark-subtle"
-                />
-              </template>
-              <v-list width="200" class="py-2">
-                <v-list-item
-                  prepend-icon="mdi-account-outline"
-                  title="Profile"
-                  to="/profile"
-                />
-                <v-divider class="my-2" />
-                <v-list-item
-                  prepend-icon="mdi-logout"
-                  title="Sign Out"
-                  @click="handleLogout"
-                />
-              </v-list>
-            </v-menu>
-          </div>
-        </div>
-      </template>
-    </v-navigation-drawer>
-
-    <!-- Top App Bar -->
-    <v-app-bar
-      v-if="!$vuetify.display.mobile"
-      :class="[
-        store.isDarkTheme ? 'bg-dark-surface border-dark-border' : 'bg-light-surface border-light-border',
-        'border-b border-opacity-10'
-      ]"
-      flat
-    >
-      <v-container class="max-w-7xl mx-auto px-4 py-2">
-        <div class="flex items-center justify-between w-full">
-          <!-- Breadcrumbs -->
-          <v-breadcrumbs
-            :items="breadcrumbs"
-            class="px-0"
-          >
-            <template v-slot:divider>
-              <v-icon icon="mdi-chevron-right" size="small"></v-icon>
-            </template>
-            <template v-slot:title="{ item }">
-              <span class="text-light-text dark:text-dark-text">{{ item.title }}</span>
-            </template>
-          </v-breadcrumbs>
-          
-          <!-- Right Actions -->
-          <div class="flex items-center space-x-4">
-            <!-- Notifications -->
-            <v-menu location="bottom end">
-              <template v-slot:activator="{ props }">
-                <v-btn
-                  icon
-                  v-bind="props"
-                  class="text-light-subtle dark:text-dark-subtle"
-                >
-                  <v-badge
-                    :content="unreadNotificationsCount"
-                    :model-value="unreadNotificationsCount > 0"
-                    color="primary"
-                  >
-                    <v-icon>mdi-bell</v-icon>
-                  </v-badge>
-                </v-btn>
-              </template>
-              <v-list width="320" class="py-2">
-                <v-list-subheader>Notifications</v-list-subheader>
-                <template v-if="recentNotifications.length">
-                  <v-list-item
-                    v-for="notification in recentNotifications"
-                    :key="notification.id"
-                    :to="getNotificationLink(notification)"
-                    :class="{ 'bg-primary/5': !notification.read }"
-                  >
-                    <template v-slot:prepend>
-                      <v-avatar color="primary" size="32">
-                        <span class="text-xs">{{ getUserInitials(notification.user) }}</span>
-                      </v-avatar>
-                    </template>
-                    <v-list-item-title class="text-sm">
-                      {{ getUserName(notification.user) }}
-                      {{ getNotificationText(notification) }}
-                    </v-list-item-title>
-                    <v-list-item-subtitle class="text-xs">
-                      {{ formatDate(notification.created_at) }}
-                    </v-list-item-subtitle>
-                  </v-list-item>
-                  <v-divider class="my-2" />
-                </template>
-                <v-list-item
-                  to="/notifications"
-                  prepend-icon="mdi-bell-outline"
-                >
-                  View All Notifications
-                </v-list-item>
-              </v-list>
-            </v-menu>
-            
-            <!-- Theme Toggle -->
-            <v-btn
-              icon
-              @click="handleThemeToggle"
-              class="text-light-subtle dark:text-dark-subtle"
-            >
-              <v-icon>{{ store.isDarkTheme ? 'mdi-weather-night' : 'mdi-weather-sunny' }}</v-icon>
-            </v-btn>
-          </div>
-        </div>
-      </v-container>
-    </v-app-bar>
-
-    <!-- Mobile Top Bar -->
-    <v-app-bar
-      v-if="$vuetify.display.mobile"
-      :class="[
-        store.isDarkTheme ? 'bg-dark-surface border-dark-border' : 'bg-light-surface border-light-border',
-        'border-b border-opacity-10'
-      ]"
-      flat
-    >
-      <v-app-bar-title class="text-primary font-bold">Gift Sync</v-app-bar-title>
-      <div class="flex items-center space-x-2">
-        <!-- Notifications -->
-        <v-btn
-          icon
           class="text-light-subtle dark:text-dark-subtle"
+          :class="{ 'text-primary dark:text-primary': $route.path === item.path }"
         >
-          <v-badge
-            :content="unreadNotificationsCount"
-            color="primary"
-            offset-x="3"
-            offset-y="3"
-          >
-            <v-icon>mdi-bell-outline</v-icon>
-          </v-badge>
+          <v-icon :icon="item.icon" />
+          <span class="text-xs mt-1">{{ item.title }}</span>
         </v-btn>
-        <!-- Theme Toggle -->
-        <v-btn
-          icon
-          variant="text"
-          @click="handleThemeToggle"
-          class="text-light-subtle dark:text-dark-subtle"
+      </v-bottom-navigation>
+
+      <!-- Main Content -->
+      <v-main 
+        :class="store.isDarkTheme ? 'bg-dark-bg' : 'bg-light-bg'"
+        ref="mainContent"
+      >
+        <div 
+          :class="[
+            'max-w-7xl mx-auto px-4 py-6 min-h-screen pb-16 md:pb-6',
+            store.isDarkTheme ? 'bg-dark-bg' : 'bg-light-bg'
+          ]"
         >
-          <v-icon>{{ store.isDarkTheme ? 'mdi-weather-sunny' : 'mdi-weather-night' }}</v-icon>
-        </v-btn>
-      </div>
-    </v-app-bar>
-
-    <!-- Mobile Bottom Navigation -->
-    <v-bottom-navigation
-      v-if="$vuetify.display.mobile"
-      v-model="currentRoute"
-      :class="[
-        store.isDarkTheme ? 'bg-dark-surface border-dark-border' : 'bg-light-surface border-light-border',
-        'border-t border-opacity-10'
-      ]"
-      grow
-    >
-      <v-btn
-        v-for="item in menuItems.slice(0, 5)"
-        :key="item.path"
-        :to="item.path"
-        :value="item.path"
-        class="text-light-subtle dark:text-dark-subtle"
-        :class="{ 'text-primary dark:text-primary': $route.path === item.path }"
-      >
-        <v-icon :icon="item.icon" />
-        <span class="text-xs mt-1">{{ item.title }}</span>
-      </v-btn>
-    </v-bottom-navigation>
-
-    <!-- Main Content -->
-    <v-main 
-      :class="store.isDarkTheme ? 'bg-dark-bg' : 'bg-light-bg'"
-      ref="mainContent"
-    >
-      <div 
-        :class="[
-          'max-w-7xl mx-auto px-4 py-6 min-h-screen pb-16 md:pb-6',
-          store.isDarkTheme ? 'bg-dark-bg' : 'bg-light-bg'
-        ]"
-      >
-        <slot />
-      </div>
-    </v-main>
-  </v-app>
+          <slot />
+        </div>
+      </v-main>
+    </v-app>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -467,6 +469,11 @@ async function handleLogout() {
     console.error('Logout failed:', error)
     // Optionally add error handling/user notification here
   }
+}
+
+// Redirect if no user
+if (!store.currentUser) {
+  router.push('/login')
 }
 </script> 
 

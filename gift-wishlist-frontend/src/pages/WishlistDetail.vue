@@ -208,11 +208,11 @@
       </div>
     </div>
 
-    <!-- Replace the existing masonry grid with this conditional rendering -->
+    <!-- Update the drag template -->
     <draggable
       v-if="isOwner && isDragMode"
       v-model="dragItems"
-      class="drag-grid"
+      class="items-grid"
       @end="handleDragEnd"
       item-key="id"
       handle=".drag-handle"
@@ -220,24 +220,48 @@
       ghost-class="ghost-item"
     >
       <template #item="{ element: item }">
-        <div class="drag-item">
+        <div class="item-card">
           <div class="drag-handle">
             <v-icon icon="mdi-drag" />
           </div>
-          <div class="drag-content">
-            <!-- Image -->
-            <div class="item-image-container">
-              <v-img
-                v-if="item.image_url || item.image"
-                :src="item.image_url || item.image"
-                height="200"
-                cover
+          <div class="item-image-container">
+            <v-img
+              :src="item.image_url || item.image || '/placeholder-gift.png'"
+              :aspect-ratio="imageHeights[item.id] || 1"
+              cover
+              class="item-image"
+              @load="onImageLoad($event, item.id)"
+              @error="onImageError(item.id)"
+            >
+              <template v-slot:placeholder>
+                <div class="d-flex align-center justify-center fill-height">
+                  <v-progress-circular indeterminate color="primary" />
+                </div>
+              </template>
+            </v-img>
+            
+            <!-- Add clickable overlay if link exists -->
+            <a 
+              v-if="item.link"
+              :href="item.link"
+              target="_blank"
+              rel="noopener"
+              class="image-link-overlay"
+            >
+              <v-icon
+                icon="mdi-open-in-new"
+                class="overlay-icon"
               />
+            </a>
+          </div>
+
+          <div class="card-content">
+            <div class="card-header">
+              <span class="title">{{ item.title }}</span>
             </div>
-            <!-- Item Details -->
-            <div class="item-details">
-              <h3 class="title">{{ item.title }}</h3>
-              <p class="price">${{ item.price }}</p>
+            <div class="meta-info">
+              <span>${{ item.price }}</span>
+              <span>Size: {{ item.size }}</span>
             </div>
           </div>
         </div>
@@ -267,6 +291,20 @@
               </div>
             </template>
           </v-img>
+          
+          <!-- Add clickable overlay if link exists -->
+          <a 
+            v-if="item.link"
+            :href="item.link"
+            target="_blank"
+            rel="noopener"
+            class="image-link-overlay"
+          >
+            <v-icon
+              icon="mdi-open-in-new"
+              class="overlay-icon"
+            />
+          </a>
         </div>
 
         <div class="card-content bg-light-surface dark:bg-dark-surface">
@@ -1699,13 +1737,13 @@ function clearSelectedImage() {
 /* Update grid styles */
 .items-grid {
   display: grid;
-  /* Increase minimum width to ensure photos are visible */
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 24px;
   padding: 24px;
   width: 100%;
-  max-width: 1600px; /* Prevent too wide layout on large screens */
+  max-width: 1600px;
   margin: 0 auto;
+  background: rgb(var(--v-theme-background));
 }
 
 .item-card {
@@ -1718,29 +1756,20 @@ function clearSelectedImage() {
   height: 100%;
   display: flex;
   flex-direction: column;
-  /* Ensure minimum width for photos */
-  min-width: 280px;
-  /* Prevent cards from stretching too wide */
-  max-width: 400px;
-  /* Center cards in their grid cells */
-  justify-self: center;
-  width: 100%;
-}
-
-.item-card:hover {
-  transform: translateY(-4px);
-}
-
-.item-card.is-loading {
-  opacity: 0.7;
 }
 
 .item-image-container {
   position: relative;
   width: 100%;
-  padding-top: 100%; /* Create a square container */
+  padding-top: 100%;
   overflow: hidden;
-  background: rgba(var(--v-theme-surface-variant), 0.5);
+  background: rgb(255, 255, 255);
+  cursor: pointer;
+}
+
+/* Dark theme background */
+:deep(.v-theme--dark) .item-image-container {
+  background: rgb(18, 18, 18);
 }
 
 .item-image {
@@ -1750,13 +1779,14 @@ function clearSelectedImage() {
   transform: translate(-50%, -50%);
   width: 100% !important;
   height: 100% !important;
+  z-index: 0; /* Ensure image stays behind overlay */
 }
 
-/* Update for landscape images */
-.item-image :deep(.v-img__img) {
-  object-fit: contain !important; /* Change from cover to contain */
-  background-color: rgba(var(--v-theme-surface-variant), 0.5);
-  padding: 8px; /* Add some padding around the image */
+/* Remove filters and background from images */
+:deep(.v-img__img) {
+  object-fit: contain !important;
+  background: none !important;
+  filter: none !important;
 }
 
 /* Update card styles */
@@ -1810,16 +1840,6 @@ function clearSelectedImage() {
   border-top: 1px solid rgba(var(--v-border-color), 0.12);
 }
 
-/* Dark theme adjustments */
-:deep(.v-theme--dark) .item-card {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-}
-
-/* Loading state */
-.item-card.is-loading .item-image {
-  min-height: 300px;
-}
-
 /* Ghost item styles */
 .ghost-item {
   opacity: 0.5;
@@ -1845,11 +1865,6 @@ function clearSelectedImage() {
   height: 100% !important;
 }
 
-/* Add dark mode background */
-:deep(.v-theme--dark) .item-image :deep(.v-img__img) {
-  background-color: rgba(255, 255, 255, 0.05);
-}
-
 /* Update responsive styles */
 @media (max-width: 599px) {
   .items-grid,
@@ -1867,5 +1882,84 @@ function clearSelectedImage() {
   .item-image-container {
     padding-top: 75%; /* Slightly shorter on mobile */
   }
+}
+
+/* Update drag-related styles */
+.drag-handle {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(var(--v-theme-surface), 0.9);
+  border-radius: 50%;
+  cursor: move;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+:deep(.v-theme--dark) .drag-handle {
+  background: rgba(var(--v-theme-surface), 0.9);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.ghost-item {
+  opacity: 0.5;
+}
+
+.sortable-ghost {
+  opacity: 0.5;
+}
+
+.sortable-drag {
+  cursor: grabbing;
+}
+
+/* Remove old drag styles */
+.drag-grid,
+.drag-item,
+.drag-content {
+  /* Remove these style blocks if they exist */
+}
+
+/* Add these styles */
+.image-link-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s ease;
+  z-index: 1;
+  text-decoration: none;
+}
+
+.overlay-icon {
+  opacity: 0;
+  transform: scale(0.8);
+  transition: all 0.2s ease;
+  color: white;
+  font-size: 32px;
+}
+
+.image-link-overlay:hover {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.image-link-overlay:hover .overlay-icon {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* Dark theme adjustments */
+:deep(.v-theme--dark) .image-link-overlay:hover {
+  background: rgba(0, 0, 0, 0.5);
 }
 </style>

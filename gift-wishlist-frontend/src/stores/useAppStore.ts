@@ -25,8 +25,26 @@ export const useAppStore = defineStore('app', () => {
   const currentUser = ref<User | null>(null)
   const notifications = ref<Notification[]>([])
   const isDarkTheme = ref(false)
-  const loading = ref(false)
+  const loading = ref(true)
   const itemOrder = ref<Record<number, number[]>>({})
+
+  // Add initialization function
+  async function initializeApp() {
+    loading.value = true
+    try {
+      // Check for stored auth token and validate
+      const token = localStorage.getItem('token')
+      if (token) {
+        const user = await authService.validateToken()
+        currentUser.value = user
+      }
+    } catch (error) {
+      currentUser.value = null
+      localStorage.removeItem('token')
+    } finally {
+      loading.value = false
+    }
+  }
 
   // Actions
   function setCurrentUser(user: User | null) {
@@ -91,6 +109,11 @@ export const useAppStore = defineStore('app', () => {
     fetchNotifications,
     logout,
     setItemOrder,
-    getItemOrder
+    getItemOrder,
+    initializeApp
+  }
+}, {
+  persist: {
+    paths: ['isDarkTheme', 'itemOrder']
   }
 })

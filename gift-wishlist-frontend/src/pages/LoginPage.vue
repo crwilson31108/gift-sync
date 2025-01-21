@@ -1,6 +1,15 @@
 <template>
   <div class="min-h-screen flex items-center justify-center bg-light-bg dark:bg-dark-bg py-12 px-4 sm:px-6 lg:px-8">
-    <div class="max-w-md w-full space-y-8">
+    <!-- Show loading animation when logging in -->
+    <LoadingAnimation 
+      v-if="isLoggingIn"
+      title="Welcome Back!"
+      message="Getting everything ready..."
+      :isFadingOut="isFadingOut"
+    />
+
+    <!-- Login form -->
+    <div v-else class="max-w-md w-full space-y-8">
       <!-- Logo/Header -->
       <div class="text-center">
         <img 
@@ -67,9 +76,12 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/useAppStore'
 import { authService } from '@/services/auth'
+import LoadingAnimation from '@/components/LoadingAnimation.vue'
 
 const router = useRouter()
 const store = useAppStore()
+const isLoggingIn = ref(false)
+const isFadingOut = ref(false)
 
 const form = reactive({
   email: '',
@@ -100,6 +112,7 @@ interface User {
 
 const handleSubmit = async () => {
   loading.value = true
+  isLoggingIn.value = true
   errors.email = ''
   errors.password = ''
 
@@ -110,10 +123,20 @@ const handleSubmit = async () => {
       full_name: response.user.username
     }
     store.setCurrentUser(user)
+    
+    // Add a longer delay and fade out
+    await new Promise(resolve => setTimeout(resolve, 2000))
+    isFadingOut.value = true
+    
+    // Wait for fade out before redirecting
+    await new Promise(resolve => setTimeout(resolve, 500))
+    
     const redirectPath = localStorage.getItem('redirectPath') || '/'
     localStorage.removeItem('redirectPath')
     router.push(redirectPath)
   } catch (error: any) {
+    isLoggingIn.value = false
+    isFadingOut.value = false
     if (error.response?.data) {
       const { detail, email, password } = error.response.data
       if (detail) errors.email = detail

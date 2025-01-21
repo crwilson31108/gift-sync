@@ -1,5 +1,11 @@
+# Python
+*.py[cod]
+__pycache__/
+*.so
+.Python
+.pytest_cache/
 *.pyc
-__pycache__
+
 db.sqlite3
 /staticfiles
 .env
