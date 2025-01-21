@@ -19,31 +19,6 @@ class ProductScraper:
             'Connection': 'keep-alive',
         }
 
-<<<<<<< Updated upstream
-    def scrape(self) -> Dict:
-        try:
-            response = requests.get(self.url, headers=self.headers, timeout=10)
-            response.raise_for_status()
-            soup = BeautifulSoup(response.text, 'lxml')
-            
-            # Try to extract structured data first
-            structured_data = self._get_structured_data(soup)
-            if structured_data:
-                structured_data['all_images'] = self._get_all_images(soup)
-                return structured_data
-
-            # Fallback to regular scraping
-            return {
-                'title': self._get_title(soup),
-                'price': self._get_price(soup),
-                'image_url': self._get_image(soup),
-                'description': self._get_description(soup),
-                'all_images': self._get_all_images(soup)
-            }
-        except Exception as e:
-            logger.error(f"Error scraping {self.url}: {str(e)}")
-            return {}
-=======
     def scrape(self):
         try:
             # Try regular requests first
@@ -110,7 +85,6 @@ class ProductScraper:
             'description': self._get_description(soup),
             'all_images': self._get_all_images(soup)
         }
->>>>>>> Stashed changes
 
     def _get_structured_data(self, soup: BeautifulSoup) -> Optional[Dict]:
         """Extract product info from structured data if available"""
