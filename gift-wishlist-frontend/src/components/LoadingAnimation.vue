@@ -3,10 +3,12 @@
     <div class="animation-container">
       <LottieAnimation
         :animationData="loadingAnimation"
-        :height="300"
-        :width="300"
+        :height="400"
+        :width="400"
         :loop="true"
         :autoPlay="true"
+        :speed="0.8"
+        class="lottie-animation"
       />
     </div>
     <div class="loading-text">
@@ -53,28 +55,38 @@ defineProps<{
   margin-bottom: 2rem;
   transform: scale(1);
   transition: transform 0.3s ease;
+  width: min(90vw, 400px);
+  height: min(90vw, 400px);
+}
+
+.lottie-animation {
+  width: 100% !important;
+  height: 100% !important;
 }
 
 .loading-animation:hover .animation-container {
-  transform: scale(1.05);
+  transform: scale(1.02);
 }
 
 .loading-text {
   text-align: center;
+  max-width: 80%;
 }
 
 .title {
-  font-size: 2rem;
+  font-size: clamp(1.5rem, 5vw, 2.5rem);
   font-weight: 600;
   margin-bottom: 0.5rem;
   color: rgb(var(--v-theme-primary));
+  line-height: 1.2;
 }
 
 .message {
-  font-size: 1.25rem;
+  font-size: clamp(1rem, 3vw, 1.25rem);
   color: rgb(var(--v-theme-on-background));
   opacity: 0.87;
   font-weight: 500;
+  line-height: 1.4;
 }
 
 /* Dark theme adjustments */
@@ -84,5 +96,22 @@ defineProps<{
 
 :deep(.v-theme--dark) .title {
   color: rgb(var(--v-theme-primary));
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .animation-container {
+    margin-bottom: 1.5rem;
+  }
+}
+
+@media (min-width: 1200px) {
+  .animation-container {
+    transform: scale(1.1);
+  }
+  
+  .loading-animation:hover .animation-container {
+    transform: scale(1.15);
+  }
 }
 </style> 

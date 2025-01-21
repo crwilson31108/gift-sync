@@ -270,18 +270,28 @@
           store.isDarkTheme ? 'bg-dark-surface border-dark-border' : 'bg-light-surface border-light-border',
           'border-t border-opacity-10'
         ]"
+        fixed
         grow
       >
         <v-btn
-          v-for="item in menuItems.slice(0, 5)"
+          v-for="item in menuItems"
           :key="item.path"
           :to="item.path"
           :value="item.path"
-          class="text-light-subtle dark:text-dark-subtle"
-          :class="{ 'text-primary dark:text-primary': $route.path === item.path }"
+          class="pa-2"
         >
-          <v-icon :icon="item.icon" />
-          <span class="text-xs mt-1">{{ item.title }}</span>
+          <template v-slot:prepend>
+            <v-icon
+              :icon="item.icon"
+              :class="{ 'text-primary': $route.path === item.path }"
+            />
+          </template>
+          <span 
+            class="text-caption"
+            :class="{ 'text-primary font-weight-medium': $route.path === item.path }"
+          >
+            {{ item.title }}
+          </span>
         </v-btn>
       </v-bottom-navigation>
 
@@ -540,5 +550,25 @@ if (!store.currentUser) {
 .v-main__wrap {
   scroll-behavior: smooth;
 }
-  
+
+.v-bottom-navigation {
+  position: fixed !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  z-index: 1000 !important;
+  box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Adjust main content padding for mobile */
+.v-main {
+  padding-bottom: var(--v-bottom-navigation-height, 56px) !important;
+}
+
+@media (max-width: 960px) {
+  .v-main {
+    margin-left: 0 !important;
+    padding-bottom: calc(var(--v-bottom-navigation-height, 56px) + 16px) !important;
+  }
+}
 </style> 
