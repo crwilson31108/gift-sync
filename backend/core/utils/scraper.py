@@ -20,6 +20,8 @@ from selenium.webdriver.common.by import By
 import cloudscraper
 from urllib3.util.retry import Retry
 from requests.adapters import HTTPAdapter
+import os
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
@@ -100,6 +102,21 @@ class ProductScraper:
             delay=3
         )
 
+        # Update Chrome options for production
+        self.chrome_options = Options()
+        self.chrome_options.add_argument('--headless=new')
+        self.chrome_options.add_argument('--no-sandbox')
+        self.chrome_options.add_argument('--disable-dev-shm-usage')
+        self.chrome_options.add_argument('--disable-gpu')
+        self.chrome_options.binary_location = os.getenv('CHROME_BIN', '/usr/bin/chromium')
+        
+        # Add production-specific options
+        if not settings.DEBUG:
+            self.chrome_options.add_argument('--disable-software-rasterizer')
+            self.chrome_options.add_argument('--disable-extensions')
+            self.chrome_options.add_argument('--single-process')
+            self.chrome_options.add_argument('--remote-debugging-port=9222')
+
     def _get_session(self):
         """Create a session with enhanced retry strategy"""
         session = requests.Session()
@@ -153,56 +170,47 @@ class ProductScraper:
 
     @contextmanager
     def get_driver(self):
-        """Enhanced Selenium driver setup with more anti-detection measures"""
-        options = Options()
-        options.add_argument('--headless=new')
-        options.add_argument('--no-sandbox')
-        options.add_argument('--disable-dev-shm-usage')
-        options.add_argument(f'user-agent={self.ua.random}')
-        options.add_argument('--disable-blink-features=AutomationControlled')
-        options.add_argument('--disable-extensions')
-        options.add_argument('--disable-gpu')
-        options.add_argument('--window-size=1920,1080')
-        options.add_argument('--start-maximized')
-        options.add_argument('--disable-infobars')
-        
-        # Additional stealth options
-        options.add_experimental_option("excludeSwitches", ["enable-automation"])
-        options.add_experimental_option('useAutomationExtension', False)
-        
-        driver = webdriver.Chrome(
-            service=Service(ChromeDriverManager().install()),
-            options=options
-        )
-        
-        # Execute CDP commands to make detection harder
-        driver.execute_cdp_cmd('Network.setUserAgentOverride', {
-            "userAgent": self.ua.random,
-            "platform": "Windows",
-            "acceptLanguage": "en-US,en;q=0.9"
-        })
-        
-        # Additional stealth scripts
-        driver.execute_script(
-            "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
-        )
-        driver.execute_script(
-            "Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]})"
-        )
-        
+        """Enhanced Selenium driver setup with production configuration"""
         try:
+            service = Service(
+                executable_path=os.getenv('CHROMEDRIVER_PATH', '/usr/bin/chromedriver')
+            )
+            
+            driver = webdriver.Chrome(
+                service=service,
+                options=self.chrome_options
+            )
+            
+            # Set page load timeout
+            driver.set_page_load_timeout(30)
+            
             yield driver
+        except Exception as e:
+            logger.error(f"Failed to create driver: {str(e)}")
+            raise
         finally:
-            driver.quit()
+            try:
+                if 'driver' in locals():
+                    driver.quit()
+            except Exception as e:
+                logger.error(f"Failed to quit driver: {str(e)}")
 
     def _try_selenium(self) -> Dict:
-        """Try with Selenium as last resort"""
-        with self.get_driver() as driver:
-            driver.get(self.url)
-            WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((By.TAG_NAME, "body"))
-            )
-            return self._parse_content(driver.page_source)
+        """Enhanced Selenium attempt with better error handling"""
+        try:
+            with self.get_driver() as driver:
+                driver.get(self.url)
+                try:
+                    WebDriverWait(driver, 10).until(
+                        EC.presence_of_element_located((By.TAG_NAME, "body"))
+                    )
+                    return self._parse_content(driver.page_source)
+                except Exception as e:
+                    logger.error(f"Selenium wait error: {str(e)}")
+                    return self._parse_content(driver.page_source)
+        except Exception as e:
+            logger.error(f"Selenium error: {str(e)}")
+            return {}
 
     def scrape(self):
         try:

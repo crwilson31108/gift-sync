@@ -72,5 +72,33 @@ export const authService = {
       new_password: newPassword
     })
     return data
+  },
+
+  async validateToken(): Promise<User> {
+    try {
+      const token = this.getToken()
+      if (!token) {
+        throw new Error('No token found')
+      }
+      
+      // Set token in headers if not already set
+      if (!api.defaults.headers.common['Authorization']) {
+        api.defaults.headers.common['Authorization'] = `Bearer ${token}`
+      }
+      
+      const { data } = await api.get('/users/me/')
+      return data
+    } catch (error) {
+      this.clearTokens()
+      throw error
+    }
+  },
+
+  // Add method to setup API with existing token
+  setupApiWithToken(): void {
+    const token = this.getToken()
+    if (token) {
+      api.defaults.headers.common['Authorization'] = `Bearer ${token}`
+    }
   }
 } 

@@ -26,23 +26,37 @@ export const useAppStore = defineStore('app', () => {
   const notifications = ref<Notification[]>([])
   const isDarkTheme = ref(false)
   const loading = ref(true)
+  const initialized = ref(false)
   const itemOrder = ref<Record<number, number[]>>({})
 
-  // Add initialization function
+  // Enhanced initialization function
   async function initializeApp() {
+    if (initialized.value) return // Prevent multiple initializations
+    
     loading.value = true
     try {
+      // Setup API with token if exists
+      authService.setupApiWithToken()
+      
       // Check for stored auth token and validate
-      const token = localStorage.getItem('token')
+      const token = authService.getToken()
       if (token) {
-        const user = await authService.validateToken()
-        currentUser.value = user
+        try {
+          const user = await authService.validateToken()
+          currentUser.value = user
+          // Optionally fetch notifications here if needed
+          await fetchNotifications()
+        } catch (error) {
+          console.error('Token validation failed:', error)
+          await logout()
+        }
       }
     } catch (error) {
-      currentUser.value = null
-      localStorage.removeItem('token')
+      console.error('App initialization error:', error)
+      await logout()
     } finally {
       loading.value = false
+      initialized.value = true // Set initialized to true when done
     }
   }
 
@@ -84,15 +98,14 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
+  // Enhanced logout function
   async function logout() {
     try {
       await authService.logout()
       currentUser.value = null
       notifications.value = []
-      localStorage.removeItem('token')
     } catch (error) {
       console.error('Error during logout:', error)
-      throw error
     }
   }
 
@@ -101,6 +114,7 @@ export const useAppStore = defineStore('app', () => {
     notifications,
     isDarkTheme,
     loading,
+    initialized,
     itemOrder,
     setCurrentUser,
     updateCurrentUser,
@@ -114,6 +128,7 @@ export const useAppStore = defineStore('app', () => {
   }
 }, {
   persist: {
-    paths: ['isDarkTheme', 'itemOrder']
+    paths: ['isDarkTheme', 'itemOrder'],
+    storage: localStorage
   }
 })
