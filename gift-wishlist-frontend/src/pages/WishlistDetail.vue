@@ -1562,7 +1562,8 @@ function checkImageQuality(event: Event, imageUrl: string) {
   if (img) {
     // Check if image meets minimum size requirements
     const isGoodQuality = img.naturalWidth >= minimumImageSize && 
-                         img.naturalHeight >= minimumImageSize
+                         img.naturalHeight >= minimumImageSize &&
+                         img.fileSize >= 500 * 1024; // Ensure image is 500KB or more
     imageQualities.value[imageUrl] = isGoodQuality
   }
 }
@@ -1961,5 +1962,21 @@ function clearSelectedImage() {
 /* Dark theme adjustments */
 :deep(.v-theme--dark) .image-link-overlay:hover {
   background: rgba(0, 0, 0, 0.5);
+}
+
+.scraped-images-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 16px;
+}
+
+.scraped-image-item {
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.scraped-image-item.selected {
+  border: 2px solid var(--v-theme-primary);
+  transform: scale(1.05);
 }
 </style>
