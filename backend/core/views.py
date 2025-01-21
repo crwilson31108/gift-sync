@@ -188,18 +188,58 @@ class WishListItemViewSet(viewsets.ModelViewSet):
             wishlist__family__members=self.request.user
         ).select_related('purchased_by', 'wishlist__owner')
 
-    def perform_create(self, serializer):
-        # Ensure image_url is saved from form data
-        image_url = self.request.data.get('image_url', '')
-        serializer.save(image_url=image_url)
-
     def perform_update(self, serializer):
-        # Ensure image_url is updated from form data
-        image_url = self.request.data.get('image_url', '')
-        if image_url:
-            serializer.save(image_url=image_url)
+        instance = self.get_object()
+        
+        # Get current priority if not provided in request
+        priority = self.request.data.get('priority', instance.priority)
+        
+        # Handle image updates
+        if 'image' in self.request.FILES:
+            # New image file uploaded
+            instance.image_url = ''  # Clear any existing image URL
+            serializer.save(
+                image=self.request.FILES['image'],
+                priority=priority
+            )
+        elif 'image_url' in self.request.data and self.request.data['image_url']:
+            # New image URL provided
+            instance.image = None  # Clear any existing image file
+            serializer.save(
+                image_url=self.request.data['image_url'],
+                priority=priority
+            )
         else:
-            serializer.save()
+            # No new image, keep existing
+            serializer.save(priority=priority)
+
+    def perform_create(self, serializer):
+        # Get the wishlist
+        wishlist_id = self.request.data.get('wishlist')
+        if wishlist_id:
+            # Get the current highest priority for this wishlist
+            highest_priority = WishListItem.objects.filter(
+                wishlist_id=wishlist_id
+            ).order_by('-priority').values_list('priority', flat=True).first()
+            
+            # Set priority to highest + 1, or 0 if no items exist
+            priority = (highest_priority or -1) + 1
+        else:
+            priority = 0
+
+        # Handle image creation with priority
+        if 'image' in self.request.FILES:
+            serializer.save(
+                image=self.request.FILES['image'],
+                priority=priority
+            )
+        elif 'image_url' in self.request.data and self.request.data['image_url']:
+            serializer.save(
+                image_url=self.request.data['image_url'],
+                priority=priority
+            )
+        else:
+            serializer.save(priority=priority)
 
     @action(detail=True, methods=['POST'])
     def purchase(self, request, pk=None):
