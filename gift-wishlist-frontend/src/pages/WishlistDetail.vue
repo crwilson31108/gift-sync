@@ -226,7 +226,7 @@
           </div>
           <div class="drag-content">
             <!-- Image -->
-            <div class="image-container">
+            <div class="item-image-container">
               <v-img
                 v-if="item.image_url || item.image"
                 :src="item.image_url || item.image"
@@ -245,26 +245,29 @@
     </draggable>
 
     <!-- Original masonry grid for non-drag mode -->
-    <div v-else class="masonry-grid">
+    <div v-else class="items-grid">
       <div
-        v-for="item in filteredItems"
+        v-for="item in dragItems"
         :key="item.id"
-        class="masonry-item"
-        :class="{ 'opacity-50': !isOwner && item.is_purchased }"
+        class="item-card"
+        :class="{ 'is-loading': !itemImagesLoaded[item.id] }"
       >
-        <v-img
-          v-if="item.image_url || item.image"
-          :src="item.image_url || item.image"
-          :aspect-ratio="undefined"
-          class="bg-light-subtle dark:bg-dark-subtle"
-          @load="onImageLoad($event, item.id)"
-        >
-          <template v-slot:placeholder>
-            <div class="d-flex align-center justify-center fill-height">
-              <v-progress-circular indeterminate color="primary" />
-            </div>
-          </template>
-        </v-img>
+        <div class="item-image-container">
+          <v-img
+            :src="item.image_url || item.image || '/placeholder-gift.png'"
+            :aspect-ratio="imageHeights[item.id] || 1"
+            cover
+            class="item-image"
+            @load="onImageLoad($event, item.id)"
+            @error="onImageError(item.id)"
+          >
+            <template v-slot:placeholder>
+              <div class="d-flex align-center justify-center fill-height">
+                <v-progress-circular indeterminate color="primary" />
+              </div>
+            </template>
+          </v-img>
+        </div>
 
         <div class="card-content bg-light-surface dark:bg-dark-surface">
           <div class="card-header">
@@ -298,7 +301,12 @@
               prepend-icon="mdi-link"
               :href="item.link"
               target="_blank"
+              class="text-truncate"
+              max-width="200px"
             >
+              <v-tooltip activator="parent" location="top">
+                {{ item.link }}
+              </v-tooltip>
               View Item
             </v-btn>
             <v-spacer />
@@ -352,132 +360,358 @@
         </v-card-title>
 
         <v-card-text class="flex-grow-1 overflow-y-auto px-6">
-          <v-form @submit.prevent="handleItemSubmit">
-            <!-- URL Scraping Section -->
-            <div v-if="itemDialog.mode === 'create'" class="mb-4">
-              <v-text-field
-                v-model="itemForm.link"
-                label="Provide a link to scrape"
-                :error-messages="itemErrors.link"
-                @input="itemErrors.link = ''"
-                :disabled="scraping"
-              />
-              <v-btn
-                color="primary"
-                @click="scrapeUrl"
-                :loading="scraping"
-                class="mt-2"
-              >
-                Fill Auto-Magically
-              </v-btn>
-            </div>
+          <!-- Show tabs only in create mode -->
+          <v-tabs v-if="itemDialog.mode === 'create'" v-model="activeTab">
+            <v-tab value="auto">Auto-fill from URL</v-tab>
+            <v-tab value="manual">Manual Entry</v-tab>
+          </v-tabs>
 
-            <!-- Main Form Fields -->
-            <div class="space-y-4">
-              <v-text-field
-                v-model="itemForm.title"
-                label="Title"
-                required
-                :error-messages="itemErrors.title"
-                @input="itemErrors.title = ''"
-                :disabled="!hasScrapedData && itemDialog.mode === 'create'"
-              />
+          <v-window v-model="activeTab">
+            <!-- Auto-fill tab (only shown in create mode) -->
+            <v-window-item v-if="itemDialog.mode === 'create'" value="auto">
+              <v-container class="pa-0">
+                <v-form @submit.prevent="handleAutoFill">
+                  <p class="text-body-1 mb-4">Enter a product URL to automatically fill the details</p>
+                  <v-text-field
+                    v-model="itemForm.link"
+                    label="Product URL"
+                    :error-messages="itemErrors.link"
+                    @input="itemErrors.link = ''"
+                    :disabled="scraping"
+                    placeholder="https://example.com/product"
+                    class="url-field"
+                  >
+                    <template v-slot:details v-if="itemForm.link">
+                      <div class="text-truncate">
+                        <v-tooltip activator="parent" location="bottom">
+                          {{ itemForm.link }}
+                        </v-tooltip>
+                        {{ itemForm.link }}
+                      </div>
+                    </template>
+                  </v-text-field>
+                  
+                  <!-- Replace the scraped data preview section in the auto-fill tab -->
+                  <div v-if="hasScrapedData" class="mt-6">
+                    <h3 class="text-h6 mb-4">Review & Edit Scraped Data</h3>
+                    
+                    <div class="scraped-data-preview">
+                      <v-form>
+                        <v-list>
+                          <v-list-item>
+                            <template v-slot:prepend>
+                              <v-icon color="primary">mdi-format-title</v-icon>
+                            </template>
+                            <v-list-item-title>Title</v-list-item-title>
+                            <v-text-field
+                              v-model="itemForm.title"
+                              variant="outlined"
+                              density="compact"
+                              hide-details
+                              class="mt-2"
+                            />
+                          </v-list-item>
 
-              <v-textarea
-                v-model="itemForm.description"
-                label="Description"
-                :error-messages="itemErrors.description"
-                @input="itemErrors.description = ''"
-                :disabled="!hasScrapedData && itemDialog.mode === 'create'"
-              />
+                          <v-list-item>
+                            <template v-slot:prepend>
+                              <v-icon color="primary">mdi-currency-usd</v-icon>
+                            </template>
+                            <v-list-item-title>Price</v-list-item-title>
+                            <v-text-field
+                              v-model="itemForm.price"
+                              variant="outlined"
+                              density="compact"
+                              hide-details
+                              type="number"
+                              prefix="$"
+                              class="mt-2"
+                            />
+                          </v-list-item>
 
-              <v-text-field
-                v-model="itemForm.price"
-                label="Price"
-                type="number"
-                required
-                prefix="$"
-                :error-messages="itemErrors.price"
-                @input="itemErrors.price = ''"
-                :disabled="!hasScrapedData && itemDialog.mode === 'create'"
-              />
+                          <v-list-item>
+                            <template v-slot:prepend>
+                              <v-icon color="primary">mdi-text</v-icon>
+                            </template>
+                            <v-list-item-title>Description</v-list-item-title>
+                            <v-textarea
+                              v-model="itemForm.description"
+                              variant="outlined"
+                              density="compact"
+                              hide-details
+                              auto-grow
+                              rows="3"
+                              class="mt-2"
+                            />
+                          </v-list-item>
 
-              <v-text-field
-                v-if="itemDialog.mode === 'edit'"
-                v-model="itemForm.link"
-                label="Link"
-                :error-messages="itemErrors.link"
-                @input="itemErrors.link = ''"
-              />
+                          <v-list-item>
+                            <template v-slot:prepend>
+                              <v-icon color="primary">mdi-ruler</v-icon>
+                            </template>
+                            <v-list-item-title>Size</v-list-item-title>
+                            <v-select
+                              v-model="itemForm.size"
+                              :items="['Stocking', 'Small', 'Medium', 'Large']"
+                              variant="outlined"
+                              density="compact"
+                              hide-details
+                              class="mt-2"
+                            />
+                          </v-list-item>
 
-              <v-select
-                v-model="itemForm.size"
-                :items="['Stocking', 'Small', 'Medium', 'Large']"
-                label="Size"
-                :disabled="!hasScrapedData && itemDialog.mode === 'create'"
-              />
+                          <!-- Image Selection -->
+                          <v-list-item>
+                            <template v-slot:prepend>
+                              <v-icon color="primary">mdi-image</v-icon>
+                            </template>
+                            <v-list-item-title class="mb-2">Images</v-list-item-title>
+                            
+                            <!-- Selected Image Preview -->
+                            <div v-if="selectedImagePreview" class="selected-image-preview mb-4">
+                              <v-img
+                                :src="selectedImagePreview"
+                                height="200"
+                                cover
+                                class="rounded"
+                              >
+                                <template v-slot:placeholder>
+                                  <div class="d-flex align-center justify-center fill-height">
+                                    <v-progress-circular indeterminate color="primary" />
+                                  </div>
+                                </template>
+                              </v-img>
+                              <v-btn
+                                color="error"
+                                variant="text"
+                                size="small"
+                                class="mt-2"
+                                @click="clearSelectedImage"
+                                prepend-icon="mdi-close"
+                              >
+                                Clear Selected Image
+                              </v-btn>
+                            </div>
 
-              <!-- Image Upload Section -->
-              <div class="mt-4">
-                <label class="text-subtitle-1 mb-2 d-block">Item Image</label>
-                
-                <!-- Image Upload -->
-                <div class="mb-4">
-                  <v-file-input
-                    v-model="itemForm.image"
-                    accept="image/*"
-                    label="Upload Image"
-                    prepend-icon="mdi-camera"
-                    :error-messages="itemErrors.image"
-                    @change="handleImageUpload"
-                    :disabled="!hasScrapedData && itemDialog.mode === 'create'"
-                  />
-                </div>
+                            <!-- Available Images Grid -->
+                            <div v-if="allImages.length">
+                              <label class="text-subtitle-1 mb-2 d-block">Or select from scraped images:</label>
+                              <div class="scraped-images-grid">
+                                <div 
+                                  v-for="(image, index) in filteredImages" 
+                                  :key="index"
+                                  class="scraped-image-item"
+                                  :class="{ 'selected': image === itemForm.image_url }"
+                                  @click="selectScrapedImage(image)"
+                                >
+                                  <v-img
+                                    :src="image"
+                                    :aspect-ratio="1"
+                                    cover
+                                    class="rounded"
+                                    :class="{ 'v-img--selected': image === itemForm.image_url }"
+                                    @load="checkImageQuality($event, image)"
+                                  >
+                                    <template v-slot:placeholder>
+                                      <div class="d-flex align-center justify-center fill-height">
+                                        <v-progress-circular indeterminate color="primary" />
+                                      </div>
+                                    </template>
+                                  </v-img>
+                                </div>
+                              </div>
+                            </div>
 
-                <!-- Scraped Images -->
-                <div v-if="allImages.length">
-                  <label class="text-subtitle-1 mb-2 d-block">Or select from scraped images:</label>
-                  <div class="scraped-images-grid">
-                    <div 
-                      v-for="(image, index) in filteredImages" 
-                      :key="index"
-                      class="scraped-image-item"
-                      :class="{ 'selected': image === itemForm.image_url }"
-                      @click="selectScrapedImage(image)"
-                    >
-                      <v-img
-                        :src="image"
-                        :aspect-ratio="1"
-                        cover
-                        class="rounded"
-                        :class="{ 'v-img--selected': image === itemForm.image_url }"
-                        @load="checkImageQuality($event, image)"
-                      >
-                        <template v-slot:placeholder>
-                          <div class="d-flex align-center justify-center fill-height">
-                            <v-progress-circular indeterminate color="primary" />
-                          </div>
-                        </template>
-                      </v-img>
+                            <!-- Manual Image Upload Option -->
+                            <v-file-input
+                              :model-value="itemForm.image"
+                              @update:model-value="handleImageUpload"
+                              accept="image/*"
+                              label="Upload Image"
+                              prepend-icon="mdi-camera"
+                              :error-messages="itemErrors.image"
+                              class="mt-4 file-input"
+                              show-size
+                              :truncate-length="30"
+                            >
+                              <template v-slot:selection="{ fileNames }">
+                                <template v-for="fileName in fileNames" :key="fileName">
+                                  <v-chip
+                                    size="small"
+                                    label
+                                    color="primary"
+                                    variant="outlined"
+                                    class="text-truncate"
+                                    style="max-width: 100%;"
+                                  >
+                                    <v-tooltip activator="parent" location="top">
+                                      {{ fileName }}
+                                    </v-tooltip>
+                                    {{ fileName }}
+                                  </v-chip>
+                                </template>
+                              </template>
+                            </v-file-input>
+                          </v-list-item>
+                        </v-list>
+                      </v-form>
                     </div>
                   </div>
-                </div>
 
-                <!-- Preview Selected Image -->
-                <div v-if="selectedImagePreview" class="mt-4">
-                  <label class="text-subtitle-1 mb-2 d-block">Selected Image Preview:</label>
-                  <div class="selected-image-preview">
-                    <v-img
-                      :src="selectedImagePreview"
-                      height="200"
-                      cover
-                      class="rounded"
-                    />
+                  <div class="d-flex gap-4 mt-6">
+                    <v-btn
+                      color="primary"
+                      type="button"
+                      @click="scrapeUrl"
+                      :loading="scraping"
+                      block
+                    >
+                      {{ hasScrapedData ? 'Rescrape URL' : 'Fill Auto-Magically' }}
+                    </v-btn>
+                    
+                    <v-btn
+                      v-if="hasScrapedData"
+                      color="success"
+                      type="submit"
+                      block
+                    >
+                      Add to Wishlist
+                    </v-btn>
                   </div>
-                </div>
-              </div>
-            </div>
-          </v-form>
+                </v-form>
+              </v-container>
+            </v-window-item>
+
+            <!-- Manual Entry / Edit Form -->
+            <v-window-item value="manual">
+              <v-container class="pa-0">
+                <v-form @submit.prevent="handleItemSubmit">
+                  <v-text-field
+                    v-model="itemForm.title"
+                    label="Title"
+                    required
+                    :error-messages="itemErrors.title"
+                    @input="itemErrors.title = ''"
+                    :disabled="!hasScrapedData && itemDialog.mode === 'create' && activeTab === 'auto'"
+                  />
+
+                  <v-textarea
+                    v-model="itemForm.description"
+                    label="Description"
+                    :error-messages="itemErrors.description"
+                    @input="itemErrors.description = ''"
+                    :disabled="!hasScrapedData && itemDialog.mode === 'create' && activeTab === 'auto'"
+                  />
+
+                  <v-text-field
+                    v-model="itemForm.price"
+                    label="Price"
+                    type="number"
+                    required
+                    prefix="$"
+                    :error-messages="itemErrors.price"
+                    @input="itemErrors.price = ''"
+                    :disabled="!hasScrapedData && itemDialog.mode === 'create' && activeTab === 'auto'"
+                  />
+
+                  <v-select
+                    v-model="itemForm.size"
+                    :items="['Stocking', 'Small', 'Medium', 'Large']"
+                    label="Size"
+                    :disabled="!hasScrapedData && itemDialog.mode === 'create' && activeTab === 'auto'"
+                  />
+
+                  <!-- Show link field in edit mode -->
+                  <v-text-field
+                    v-if="itemDialog.mode === 'edit'"
+                    v-model="itemForm.link"
+                    label="Product URL"
+                    :error-messages="itemErrors.link"
+                    @input="itemErrors.link = ''"
+                  />
+
+                  <!-- Image Upload Section -->
+                  <div class="mt-4">
+                    <label class="text-subtitle-1 mb-2 d-block">Item Image</label>
+                    
+                    <!-- Image Upload -->
+                    <div class="mb-4">
+                      <v-file-input
+                        :model-value="itemForm.image"
+                        @update:model-value="handleImageUpload"
+                        accept="image/*"
+                        label="Upload Image"
+                        prepend-icon="mdi-camera"
+                        :error-messages="itemErrors.image"
+                        class="mt-4 file-input"
+                        show-size
+                        :truncate-length="30"
+                      >
+                        <template v-slot:selection="{ fileNames }">
+                          <template v-for="fileName in fileNames" :key="fileName">
+                            <v-chip
+                              size="small"
+                              label
+                              color="primary"
+                              variant="outlined"
+                              class="text-truncate"
+                              style="max-width: 100%;"
+                            >
+                              <v-tooltip activator="parent" location="top">
+                                {{ fileName }}
+                              </v-tooltip>
+                              {{ fileName }}
+                            </v-chip>
+                          </template>
+                        </template>
+                      </v-file-input>
+                    </div>
+
+                    <!-- Scraped Images (show only if available) -->
+                    <div v-if="allImages.length">
+                      <label class="text-subtitle-1 mb-2 d-block">Or select from scraped images:</label>
+                      <div class="scraped-images-grid">
+                        <div 
+                          v-for="(image, index) in filteredImages" 
+                          :key="index"
+                          class="scraped-image-item"
+                          :class="{ 'selected': image === itemForm.image_url }"
+                          @click="selectScrapedImage(image)"
+                        >
+                          <v-img
+                            :src="image"
+                            :aspect-ratio="1"
+                            cover
+                            class="rounded"
+                            :class="{ 'v-img--selected': image === itemForm.image_url }"
+                            @load="checkImageQuality($event, image)"
+                          >
+                            <template v-slot:placeholder>
+                              <div class="d-flex align-center justify-center fill-height">
+                                <v-progress-circular indeterminate color="primary" />
+                              </div>
+                            </template>
+                          </v-img>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Preview Selected Image -->
+                    <div v-if="selectedImagePreview" class="mt-4">
+                      <label class="text-subtitle-1 mb-2 d-block">Selected Image Preview:</label>
+                      <div class="selected-image-preview">
+                        <v-img
+                          :src="selectedImagePreview"
+                          height="200"
+                          cover
+                          class="rounded"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </v-form>
+              </v-container>
+            </v-window-item>
+          </v-window>
         </v-card-text>
 
         <v-divider></v-divider>
@@ -489,13 +723,14 @@
             @click="handleItemSubmit"
             :loading="loading"
             min-width="100"
+            :disabled="!canSubmit"
           >
-            {{ itemDialog.mode === 'create' ? 'Add' : 'Save' }}
+            {{ itemDialog.mode === 'create' ? 'Add' : 'Save Changes' }}
           </v-btn>
           <v-btn
             color="error"
             variant="text"
-            @click="itemDialog.show = false"
+            @click="closeItemDialog"
             min-width="100"
             class="ml-3"
           >
@@ -729,6 +964,7 @@ const filteredItems = computed(() => {
   })
 })
 
+const itemImagesLoaded = ref<Record<number, boolean>>({})
 const imageHeights = ref<Record<number, number>>({})
 
 function onImageLoad(event: Event, itemId: number) {
@@ -737,14 +973,26 @@ function onImageLoad(event: Event, itemId: number) {
     const aspectRatio = img.naturalWidth / img.naturalHeight
     imageHeights.value[itemId] = aspectRatio
     
-    // Apply the span class based on actual image height
-    const card = img.closest('.masonry-item') as HTMLElement
-    if (card) {
-      const baseSpan = 35 // Base span unit (adjust as needed)
-      const heightSpan = Math.ceil((img.naturalHeight / img.naturalWidth) * baseSpan)
-      card.style.gridRowEnd = `span ${heightSpan}`
+    // Mark image as loaded
+    itemImagesLoaded.value[itemId] = true
+    
+    // Add class based on aspect ratio
+    const imageContainer = img.closest('.item-image-container')
+    if (imageContainer) {
+      if (aspectRatio > 1) {
+        imageContainer.classList.add('landscape')
+      } else {
+        imageContainer.classList.add('portrait')
+      }
     }
   }
+}
+
+function onImageError(itemId: number) {
+  // Mark failed images as loaded to prevent infinite loading state
+  itemImagesLoaded.value[itemId] = true
+  // Set a default aspect ratio
+  imageHeights.value[itemId] = 1
 }
 
 onMounted(async () => {
@@ -814,16 +1062,38 @@ function openEditItemDialog(item: WishListItem) {
     mode: 'edit',
     item
   }
+  
+  // Reset form with item data
   itemForm.value = {
-    ...item,
-    wishlist: item.wishlist
+    title: item.title,
+    description: item.description || '',
+    price: item.price,
+    link: item.link || '',
+    image_url: item.image_url || '',
+    image: null, // Reset image file
+    size: item.size || 'Medium',
+    priority: item.priority || 3,
+    wishlist: item.wishlist,
   }
+  
+  // Reset errors
   itemErrors.value = {
     title: '',
+    description: '',
     price: '',
-    image: ''
+    link: '',
+    image_url: '',
+    image: '',
   }
+
+  // Set image preview if exists
   selectedImagePreview.value = item.image_url || null
+  
+  // Enable form fields for editing
+  hasScrapedData.value = true
+  
+  // Set to manual tab for editing
+  activeTab.value = 'manual'
 }
 
 function confirmDeleteItem(item: WishListItem) {
@@ -836,8 +1106,7 @@ function confirmDeleteItem(item: WishListItem) {
 async function handleItemSubmit() {
   try {
     loading.value = true
-    itemErrors.value = { title: '', price: '', image: '' }
-
+    
     // Create FormData for submission
     const formData = new FormData()
     formData.append('title', itemForm.value.title)
@@ -845,24 +1114,36 @@ async function handleItemSubmit() {
     formData.append('price', itemForm.value.price.toString())
     formData.append('link', itemForm.value.link || '')
     formData.append('size', itemForm.value.size)
-    formData.append('priority', itemForm.value.priority.toString())
     formData.append('wishlist', itemForm.value.wishlist.toString())
     
+    // Preserve priority in edit mode, or use default in create mode
+    const priority = itemDialog.value.mode === 'edit' && itemDialog.value.item 
+      ? itemDialog.value.item.priority 
+      : itemForm.value.priority
+    formData.append('priority', priority.toString())
+    
     // Handle image submission
-    if (itemForm.value.image) {
+    if (itemForm.value.image instanceof File) {
       formData.append('image', itemForm.value.image)
     } else if (itemForm.value.image_url) {
       formData.append('image_url', itemForm.value.image_url)
     }
 
-    if (itemDialog.value.item) {
+    // For edit mode, explicitly handle image removal
+    if (itemDialog.value.mode === 'edit' && !itemForm.value.image && !itemForm.value.image_url) {
+      formData.append('image', '')
+      formData.append('image_url', '')
+    }
+
+    if (itemDialog.value.mode === 'edit' && itemDialog.value.item) {
       await wishlistsService.updateItem(itemDialog.value.item.id, formData)
     } else {
       await wishlistsService.createItem(formData)
     }
 
     await loadWishlist()
-    itemDialog.value.show = false
+    closeItemDialog()
+    
   } catch (err: any) {
     if (err.response?.data) {
       itemErrors.value = {
@@ -870,10 +1151,12 @@ async function handleItemSubmit() {
         description: '',
         price: err.response.data.price?.[0] || '',
         link: err.response.data.link?.[0] || '',
-        image_url: err.response.data.image_url?.[0] || ''
+        image_url: err.response.data.image_url?.[0] || '',
+        image: err.response.data.image?.[0] || ''
       }
     } else {
-      error.value = 'An error occurred'
+      error.value = 'Failed to save item'
+      console.error('API Error:', err)
     }
   } finally {
     loading.value = false
@@ -955,15 +1238,30 @@ async function scrapeUrl() {
   try {
     scraping.value = true
     imageQualities.value = {} // Reset image qualities
+    
+    // Clear previous data
+    itemForm.value = {
+      ...itemForm.value,
+      title: '',
+      description: '',
+      price: '',
+      image_url: '',
+      size: 'Medium'
+    }
+    
     const response = await wishlistsService.scrapeUrl(itemForm.value.link)
+    
+    if (!response.title && !response.price) {
+      throw new Error('Could not extract product information from URL')
+    }
     
     // Update form with scraped data
     itemForm.value = {
       ...itemForm.value,
-      title: response.title || itemForm.value.title,
-      description: response.description || itemForm.value.description,
-      price: response.price || itemForm.value.price,
-      image_url: response.image_url || itemForm.value.image_url
+      title: response.title || '',
+      description: response.description || '',
+      price: response.price || '',
+      image_url: response.image_url || ''
     }
 
     // Update size based on scraped price
@@ -976,8 +1274,14 @@ async function scrapeUrl() {
     
     // Enable form fields after successful scrape
     hasScrapedData.value = true
+    
+    // Select first image if available
+    if (response.image_url) {
+      selectScrapedImage(response.image_url)
+    }
   } catch (err) {
-    error.value = 'Failed to scrape URL'
+    const errorMessage = err instanceof Error ? err.message : 'Failed to scrape URL'
+    error.value = errorMessage
     console.error(err)
     hasScrapedData.value = false
   } finally {
@@ -1045,16 +1349,21 @@ const getPurchaseStatusLabel = computed(() => {
 
 const selectedImagePreview = ref<string | null>(null)
 
-function handleImageUpload(file: File | null) {
+function handleImageUpload(fileOrFiles: File | File[] | null) {
+  // Handle single file upload
+  const file = Array.isArray(fileOrFiles) ? fileOrFiles[0] : fileOrFiles
+
   if (!file) {
     itemForm.value.image = null
-    itemForm.value.image_url = ''
-    selectedImagePreview.value = null
+    itemForm.value.image_url = itemDialog.value.mode === 'edit' ? 
+      itemDialog.value.item?.image_url || '' : ''
+    selectedImagePreview.value = itemDialog.value.mode === 'edit' ? 
+      itemDialog.value.item?.image_url || null : null
     return
   }
 
-  // Validate file size (5MB limit)
-  if (file.size > 5 * 1024 * 1024) {
+  // Validate file size
+  if (file.size > 5 * 1024 * 1024) { // 5MB limit
     itemErrors.value.image = 'Image size should be less than 5MB'
     itemForm.value.image = null
     selectedImagePreview.value = null
@@ -1063,16 +1372,20 @@ function handleImageUpload(file: File | null) {
 
   // Clear any existing image URL
   itemForm.value.image_url = ''
+  itemForm.value.image = file
+
+  // Revoke previous blob URL if exists
+  if (selectedImagePreview.value?.startsWith('blob:')) {
+    URL.revokeObjectURL(selectedImagePreview.value)
+  }
   
-  // Create preview URL
+  // Create new blob URL
   selectedImagePreview.value = URL.createObjectURL(file)
 }
 
 function selectScrapedImage(imageUrl: string) {
-  // Clear any uploaded file
-  itemForm.value.image = null
-  // Set the image URL
   itemForm.value.image_url = imageUrl
+  itemForm.value.image = null  // Clear any uploaded file
   selectedImagePreview.value = imageUrl
 }
 
@@ -1276,38 +1589,190 @@ function adjustPrice(type: 'min' | 'max', delta: number) {
     handleMaxPriceInput({ target: { value: newValue.toString() } } as any)
   }
 }
+
+// Add these new refs
+const activeTab = ref('auto')
+const canSubmit = computed(() => {
+  if (itemDialog.value.mode === 'edit') {
+    return !!itemForm.value.title && !!itemForm.value.price
+  }
+  
+  if (activeTab.value === 'auto') {
+    return hasScrapedData.value
+  }
+  
+  return !!itemForm.value.title && !!itemForm.value.price
+})
+
+function closeItemDialog() {
+  itemDialog.value.show = false
+  activeTab.value = 'auto'
+  hasScrapedData.value = false
+  selectedImagePreview.value = null
+  
+  // Reset form
+  itemForm.value = {
+    title: '',
+    description: '',
+    price: '',
+    link: '',
+    image_url: '',
+    size: 'Medium',
+    priority: 3,
+    wishlist: route.params.id,
+  }
+  
+  // Reset errors
+  itemErrors.value = {
+    title: '',
+    description: '',
+    price: '',
+    link: '',
+    image_url: '',
+  }
+  
+  allImages.value = []
+}
+
+async function handleAutoFill(e: Event) {
+  e.preventDefault()
+  
+  if (!hasScrapedData.value) {
+    error.value = 'Please scrape a URL first'
+    return
+  }
+
+  try {
+    loading.value = true
+    
+    // Create FormData for submission
+    const formData = new FormData()
+    formData.append('title', itemForm.value.title)
+    formData.append('description', itemForm.value.description || '')
+    formData.append('price', itemForm.value.price.toString())
+    formData.append('link', itemForm.value.link || '')
+    formData.append('size', itemForm.value.size)
+    formData.append('wishlist', route.params.id.toString())
+    
+    // Handle image
+    if (itemForm.value.image_url) {
+      formData.append('image_url', itemForm.value.image_url)
+    }
+
+    await wishlistsService.createItem(formData)
+    await loadWishlist()
+    closeItemDialog()
+    
+  } catch (err: any) {
+    if (err.response?.data) {
+      itemErrors.value = {
+        title: err.response.data.title?.[0] || '',
+        description: '',
+        price: err.response.data.price?.[0] || '',
+        link: err.response.data.link?.[0] || '',
+        image_url: err.response.data.image_url?.[0] || ''
+      }
+    } else {
+      error.value = 'Failed to add item'
+    }
+  } finally {
+    loading.value = false
+  }
+}
+
+// Update clearSelectedImage to handle edit mode
+function clearSelectedImage() {
+  itemForm.value.image_url = ''
+  itemForm.value.image = null
+  if (itemDialog.value.mode === 'edit') {
+    // In edit mode, revert to original image if it exists
+    itemForm.value.image_url = itemDialog.value.item?.image_url || ''
+    selectedImagePreview.value = itemDialog.value.item?.image_url || null
+  } else {
+    selectedImagePreview.value = null
+  }
+}
+
 </script>
 
 <style scoped>
-.masonry-grid {
-  columns: 4 300px;
-  column-gap: 16px;
-  padding: 16px;
+/* Update grid styles */
+.items-grid {
+  display: grid;
+  /* Increase minimum width to ensure photos are visible */
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 24px;
+  padding: 24px;
+  width: 100%;
+  max-width: 1600px; /* Prevent too wide layout on large screens */
+  margin: 0 auto;
 }
 
-.masonry-item {
-  break-inside: avoid;
-  margin-bottom: 16px;
-  border-radius: 8px;
-  overflow: hidden;
-  transition: transform 0.2s ease;
+.item-card {
+  position: relative;
   background: rgb(var(--v-theme-surface));
+  border-radius: 12px;
+  overflow: hidden;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s ease, opacity 0.3s ease;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  /* Ensure minimum width for photos */
+  min-width: 280px;
+  /* Prevent cards from stretching too wide */
+  max-width: 400px;
+  /* Center cards in their grid cells */
+  justify-self: center;
+  width: 100%;
 }
 
-.masonry-item:hover {
+.item-card:hover {
   transform: translateY(-4px);
 }
 
+.item-card.is-loading {
+  opacity: 0.7;
+}
+
+.item-image-container {
+  position: relative;
+  width: 100%;
+  padding-top: 100%; /* Create a square container */
+  overflow: hidden;
+  background: rgba(var(--v-theme-surface-variant), 0.5);
+}
+
+.item-image {
+  position: absolute !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%);
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Update for landscape images */
+.item-image :deep(.v-img__img) {
+  object-fit: contain !important; /* Change from cover to contain */
+  background-color: rgba(var(--v-theme-surface-variant), 0.5);
+  padding: 8px; /* Add some padding around the image */
+}
+
+/* Update card styles */
 .card-content {
-  padding: 16px;
+  padding: 20px;
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
 }
 
 .title {
@@ -1320,10 +1785,7 @@ function adjustPrice(type: 'min' | 'max', delta: number) {
 .description {
   font-size: 0.9rem;
   margin-bottom: 12px;
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  flex-grow: 1;
 }
 
 .meta-info {
@@ -1343,93 +1805,22 @@ function adjustPrice(type: 'min' | 'max', delta: number) {
 .actions {
   display: flex;
   align-items: center;
-  margin-top: 12px;
-  border-top: 1px solid rgba(var(--v-border-color), 0.12);
+  margin-top: auto;
   padding-top: 12px;
-}
-
-/* Drag mode styles */
-.drag-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 16px;
-  padding: 16px;
-}
-
-.drag-item {
-  background: rgb(var(--v-theme-surface));
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  transition: transform 0.2s ease;
-}
-
-.drag-handle {
-  padding: 8px;
-  background: rgba(var(--v-theme-on-surface), 0.05);
-  cursor: move;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  border-top: 1px solid rgba(var(--v-border-color), 0.12);
 }
 
 /* Dark theme adjustments */
-:deep(.v-theme--dark) .masonry-item,
-:deep(.v-theme--dark) .drag-item {
+:deep(.v-theme--dark) .item-card {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
-:deep(.v-theme--dark) .drag-handle {
-  background: rgba(255, 255, 255, 0.05);
+/* Loading state */
+.item-card.is-loading .item-image {
+  min-height: 300px;
 }
 
-.price-input-container {
-  position: relative;
-  width: 120px;
-}
-
-.price-input {
-  width: 100%;
-}
-
-.price-input :deep(.v-field__append) {
-  padding-inline-start: 0;
-  padding-inline-end: 8px;
-}
-
-.price-controls {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  margin-left: 4px;
-}
-
-.price-controls .v-btn {
-  margin: -4px 0;
-  height: 20px !important;
-  width: 20px !important;
-}
-
-.price-input :deep(.v-field__input) {
-  min-height: 32px;
-  padding-top: 0;
-  padding-bottom: 0;
-}
-
-.price-input :deep(.v-field__field) {
-  min-height: 32px;
-}
-
-/* Drag animation */
-.sortable-drag {
-  opacity: 0.5;
-  transform: scale(1.05);
-}
-
-.sortable-ghost {
-  opacity: 0.5;
-}
-
+/* Ghost item styles */
 .ghost-item {
   opacity: 0.5;
   background: rgb(var(--v-theme-primary));
@@ -1443,50 +1834,38 @@ function adjustPrice(type: 'min' | 'max', delta: number) {
   cursor: grabbing;
 }
 
-.scraped-images-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 8px;
-  max-height: 400px;
-  overflow-y: auto;
-  padding: 8px;
-  border: 1px solid rgba(var(--v-border-color), 0.12);
-  border-radius: 4px;
+/* Add styles for different aspect ratios */
+.item-image-container.landscape .item-image :deep(.v-img__img) {
+  height: auto !important;
+  width: 100% !important;
 }
 
-.scraped-image-item {
-  position: relative;
-  cursor: pointer;
-  border: 2px solid transparent;
-  border-radius: 4px;
-  transition: all 0.2s ease;
-  aspect-ratio: 1;
+.item-image-container.portrait .item-image :deep(.v-img__img) {
+  width: auto !important;
+  height: 100% !important;
 }
 
-.scraped-image-item:hover {
-  transform: scale(1.05);
-  z-index: 1;
+/* Add dark mode background */
+:deep(.v-theme--dark) .item-image :deep(.v-img__img) {
+  background-color: rgba(255, 255, 255, 0.05);
 }
 
-.scraped-image-item.selected {
-  border-color: rgb(var(--v-theme-primary));
-}
+/* Update responsive styles */
+@media (max-width: 599px) {
+  .items-grid,
+  .drag-grid {
+    grid-template-columns: 1fr;
+    padding: 16px;
+    gap: 16px;
+  }
 
-:deep(.v-img--selected) {
-  box-shadow: 0 0 0 2px rgb(var(--v-theme-primary));
-}
+  .item-card,
+  .drag-item {
+    min-width: 100%;
+  }
 
-.price-input :deep(.v-field__input) {
-  min-height: 32px;
-  padding-top: 0;
-  padding-bottom: 0;
-}
-
-.price-input :deep(.v-field) {
-  border-radius: 4px;
-}
-
-.price-input :deep(.v-field__input) {
-  margin-top: 1.5rem !important;
+  .item-image-container {
+    padding-top: 75%; /* Slightly shorter on mobile */
+  }
 }
 </style>
