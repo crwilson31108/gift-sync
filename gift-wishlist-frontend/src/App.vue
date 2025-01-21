@@ -1,11 +1,11 @@
 <template>
   <v-app>
     <!-- Show loading state while initializing -->
-    <div v-if="store.loading || !initialized" class="app-loading">
+    <div v-if="store.loading && !store.initialized" class="app-loading">
       <LoadingAnimation message="Getting things ready..." />
     </div>
 
-    <!-- Show app content only when loaded and initialized -->
+    <!-- Show app content when initialized -->
     <template v-else>
       <component :is="layout">
         <router-view v-slot="{ Component }">
@@ -19,11 +19,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, watch, ref } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { useAppStore } from '@/stores/useAppStore'
 import { useRoute, useRouter } from 'vue-router'
-import { authService } from '@/services/auth'
-import api from '@/services/api'
 import MainLayout from '@/layouts/MainLayout.vue'
 import AuthLayout from '@/layouts/AuthLayout.vue'
 import { useTheme } from 'vuetify'
@@ -31,9 +29,7 @@ import LoadingAnimation from '@/components/LoadingAnimation.vue'
 
 const store = useAppStore()
 const route = useRoute()
-const router = useRouter()
 const theme = useTheme()
-const initialized = ref(false)
 
 // Define public routes at the top level
 const publicRoutes = ['/login', '/request-password-reset', '/reset-password']
@@ -42,63 +38,12 @@ const isPublicRoute = (path: string) =>
 
 // Determine which layout to use
 const layout = computed(() => {
-  // Only return a layout when initialized
-  if (!initialized.value) return null
   return isPublicRoute(route.path) ? AuthLayout : MainLayout
 })
 
-// Initialize app
-async function initializeApp() {
-  try {
-    // Initialize theme first
-    const savedTheme = localStorage.getItem('theme')
-    if (savedTheme) {
-      store.setDarkTheme(savedTheme === 'dark')
-    } else {
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-      store.setDarkTheme(prefersDark)
-    }
-
-    // Check if we're on a public route first
-    if (isPublicRoute(route.path)) {
-      initialized.value = true
-      return
-    }
-
-    // Handle authentication
-    const token = localStorage.getItem('token')
-    if (token) {
-      try {
-        api.defaults.headers.common['Authorization'] = `Bearer ${token}`
-        const response = await api.get('/users/me/')
-        const user = {
-          ...response.data,
-          full_name: response.data.full_name || response.data.username
-        }
-        store.setCurrentUser(user)
-        await store.fetchNotifications()
-      } catch (error) {
-        console.error('Auth error:', error)
-        localStorage.removeItem('token')
-        delete api.defaults.headers.common['Authorization']
-        store.setCurrentUser(null)
-        if (!isPublicRoute(route.path)) {
-          router.push('/login')
-        }
-      }
-    } else if (!isPublicRoute(route.path)) {
-      router.push('/login')
-    }
-  } catch (error) {
-    console.error('Initialization error:', error)
-  } finally {
-    initialized.value = true
-  }
-}
-
 // Initialize on mount
-onMounted(() => {
-  initializeApp()
+onMounted(async () => {
+  await store.initializeApp()
 })
 
 // Watch for theme changes

@@ -1,3 +1,35 @@
+[build]
+builder = "nixpacks"
+
 [[mounts]]
 source = "/media"
 destination = "/app/media"
+
+[deploy]
+startCommand = "sh start.sh"
+healthcheckPath = "/admin/login/"
+healthcheckTimeout = 300
+restartPolicyType = "on-failure"
+restartPolicyMaxRetries = 3
+
+[nixpacks]
+# Install system dependencies for Chrome
+apt = [
+    "wget",
+    "gnupg",
+    "curl",
+    "unzip",
+    "xvfb",
+    "libgconf-2-4",
+    "libnss3",
+    "libgbm1",
+    "libasound2",
+    "chromium",
+    "chromium-driver"
+]
+
+[variables]
+CHROME_BIN = "/usr/bin/chromium"
+CHROMEDRIVER_PATH = "/usr/bin/chromedriver"
+PYTHONUNBUFFERED = "1"
+DISPLAY = ":99"

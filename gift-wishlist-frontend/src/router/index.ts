@@ -2,6 +2,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
 import { authService } from '@/services/auth'
+import { useAppStore } from '@/stores/useAppStore'
 
 // Pages/Views
 import HomePage from '../pages/HomePage.vue'
@@ -118,6 +119,13 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to, from, next) => {
+  const store = useAppStore()
+  
+  // Wait for initialization if not already done
+  if (!store.initialized) {
+    await store.initializeApp()
+  }
+  
   // Always allow public routes
   if (isPublicRoute(to.path)) {
     next()
