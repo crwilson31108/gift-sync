@@ -152,6 +152,14 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
+# Ensure the media directory exists
+os.makedirs(MEDIA_ROOT, exist_ok=True)
+
+# Add media to whitenoise if you want to serve through it
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, 'media'),
+]
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
@@ -245,3 +253,6 @@ if DEBUG:
 # SendGrid settings
 SENDGRID_API_KEY = os.getenv('SENDGRID_API_KEY')
 DEFAULT_FROM_EMAIL = "Gift Sync <crwilson311@gmail.com>"
+
+# Add this to help with media serving
+WHITENOISE_MANIFEST_STRICT = False

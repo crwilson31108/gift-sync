@@ -1,0 +1,3 @@
+[[mounts]]
+source = "/media"
+destination = "/app/media" 

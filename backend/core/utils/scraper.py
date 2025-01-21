@@ -19,6 +19,7 @@ class ProductScraper:
             'Connection': 'keep-alive',
         }
 
+<<<<<<< Updated upstream
     def scrape(self) -> Dict:
         try:
             response = requests.get(self.url, headers=self.headers, timeout=10)
@@ -42,6 +43,74 @@ class ProductScraper:
         except Exception as e:
             logger.error(f"Error scraping {self.url}: {str(e)}")
             return {}
+=======
+    def scrape(self):
+        try:
+            # Try regular requests first
+            data = self._scrape_with_requests()
+            if data:
+                return data
+
+            # If regular request fails, try cloudscraper
+            data = self._scrape_with_cloudscraper()
+            if data:
+                return data
+
+            # If both fail, return manual data if available
+            if self.manual_data:
+                return self.manual_data
+
+            raise Exception("Failed to scrape URL")
+        except Exception as e:
+            logger.error(f"Scraping error: {str(e)}")
+            # Return manual data if available, otherwise re-raise
+            if self.manual_data:
+                return self.manual_data
+            raise
+
+    def _merge_with_manual_data(self, scraped_data: Dict) -> Dict:
+        """
+        Merge scraped data with manual data, preferring manual data when available
+        """
+        if not self.manual_data:
+            return scraped_data
+
+        manual_dict = self.manual_data.to_dict()
+        merged_data = scraped_data.copy()
+
+        # Override scraped data with manual data where manual data exists
+        for key, value in manual_dict.items():
+            if value is not None:  # Only override if manual value exists
+                merged_data[key] = value
+
+        # Special handling for all_images
+        if manual_dict.get('all_images'):
+            # Add manual images to the beginning of the list
+            merged_data['all_images'] = list(dict.fromkeys(
+                manual_dict['all_images'] + scraped_data.get('all_images', [])
+            ))
+
+        return merged_data
+
+    def _parse_content(self, html_content: str) -> Dict:
+        """Parse HTML content and extract product information"""
+        soup = BeautifulSoup(html_content, 'lxml')
+        
+        # Try to extract structured data first
+        structured_data = self._get_structured_data(soup)
+        if structured_data:
+            structured_data['all_images'] = self._get_all_images(soup)
+            return structured_data
+
+        # Fallback to regular scraping
+        return {
+            'title': self._get_title(soup),
+            'price': self._get_price(soup),
+            'image_url': self._get_image(soup),
+            'description': self._get_description(soup),
+            'all_images': self._get_all_images(soup)
+        }
+>>>>>>> Stashed changes
 
     def _get_structured_data(self, soup: BeautifulSoup) -> Optional[Dict]:
         """Extract product info from structured data if available"""
