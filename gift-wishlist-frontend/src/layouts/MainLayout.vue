@@ -274,7 +274,7 @@
         grow
       >
         <v-btn
-          v-for="item in menuItems"
+          v-for="item in mobileMenuItems"
           :key="item.path"
           :to="item.path"
           :value="item.path"
@@ -293,7 +293,51 @@
             {{ item.title }}
           </span>
         </v-btn>
+        
+        <!-- Add a more button that opens a menu with logout -->
+        <v-btn @click="showMobileMenu = true" class="pa-2">
+          <template v-slot:prepend>
+            <v-icon icon="mdi-dots-horizontal" />
+          </template>
+          <span class="text-caption">More</span>
+        </v-btn>
       </v-bottom-navigation>
+
+      <!-- Mobile Menu Dialog -->
+      <v-dialog v-model="showMobileMenu" fullscreen transition="dialog-bottom-transition">
+        <v-card>
+          <v-toolbar color="primary">
+            <v-btn icon @click="showMobileMenu = false">
+              <v-icon>mdi-close</v-icon>
+            </v-btn>
+            <v-toolbar-title>Menu</v-toolbar-title>
+          </v-toolbar>
+          
+          <v-list>
+            <v-list-item
+              prepend-icon="mdi-account-outline"
+              title="Profile"
+              to="/profile"
+              @click="showMobileMenu = false"
+            />
+            
+            <v-list-item
+              prepend-icon="mdi-theme-light-dark"
+              title="Toggle Theme"
+              @click="handleThemeToggle(); showMobileMenu = false"
+            />
+            
+            <v-divider class="my-2" />
+            
+            <v-list-item
+              prepend-icon="mdi-logout"
+              title="Sign Out"
+              @click="handleLogout"
+              color="error"
+            />
+          </v-list>
+        </v-card>
+      </v-dialog>
 
       <!-- Main Content -->
       <v-main 
@@ -485,6 +529,14 @@ async function handleLogout() {
 if (!store.currentUser) {
   router.push('/login')
 }
+
+const showMobileMenu = ref(false)
+
+// Create a separate menu items array for mobile to limit the number of buttons
+const mobileMenuItems = computed(() => {
+  // Limit to 4 items for mobile to avoid overcrowding
+  return menuItems.slice(0, 4)
+})
 </script> 
 
 <style>

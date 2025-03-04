@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { notificationsService } from '@/services/notifications'
 import { authService } from '@/services/auth'
+import { api } from '@/services/api'
 
 export interface User {
   id: number
@@ -30,6 +31,7 @@ export const useAppStore = defineStore('app', () => {
   const initialized = ref(false)
   const itemOrder = ref<Record<number, number[]>>({})
   const users = ref<User[]>([])
+  const token = ref<string | null>(null)
 
   // Enhanced initialization function
   async function initializeApp() {
@@ -37,28 +39,26 @@ export const useAppStore = defineStore('app', () => {
     
     loading.value = true
     try {
-      // Setup API with token if exists
-      authService.setupApiWithToken()
+      // Check if we have a token
+      const token = localStorage.getItem('token')
       
-      // Check for stored auth token and validate
-      const token = authService.getToken()
       if (token) {
+        // Validate token by fetching current user
         try {
-          const user = await authService.validateToken()
-          currentUser.value = user
-          // Optionally fetch notifications here if needed
-          await fetchNotifications()
+          const response = await api.get('/users/me/')
+          currentUser.value = response.data
+          this.token = token
         } catch (error) {
+          // If token validation fails, clear everything
           console.error('Token validation failed:', error)
           await logout()
         }
       }
     } catch (error) {
-      console.error('App initialization error:', error)
-      await logout()
+      console.error('Error initializing app:', error)
     } finally {
+      initialized.value = true
       loading.value = false
-      initialized.value = true // Set initialized to true when done
     }
   }
 
@@ -106,6 +106,10 @@ export const useAppStore = defineStore('app', () => {
       await authService.logout()
       currentUser.value = null
       notifications.value = []
+      token.value = null
+      localStorage.removeItem('token')
+      localStorage.removeItem('user')
+      initialized.value = false
     } catch (error) {
       console.error('Error during logout:', error)
     }
