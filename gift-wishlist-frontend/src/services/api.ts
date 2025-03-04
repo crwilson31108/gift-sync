@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { useAppStore } from '@/stores/useAppStore'
 
+// Create axios instance
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000/api',
   headers: {
@@ -49,4 +50,6 @@ api.interceptors.response.use((response) => {
   return Promise.reject(error)
 })
 
+// Export as both default and named export
+export { api }
 export default api 

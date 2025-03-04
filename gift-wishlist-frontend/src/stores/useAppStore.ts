@@ -3,7 +3,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { notificationsService } from '@/services/notifications'
 import { authService } from '@/services/auth'
-import { api } from '@/services/api'
+import api from '@/services/api'
 
 export interface User {
   id: number
