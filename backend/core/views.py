@@ -650,6 +650,31 @@ def trigger_image_migration(request):
                 initial_image_url = item.image_url
                 initial_has_image = bool(item.image)
 
+                # Check if image_url is a product page (not a direct image URL)
+                is_direct_image = any(item.image_url.lower().endswith(ext)
+                                    for ext in ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp'])
+
+                if not is_direct_image and item.link:
+                    # This looks like a product page URL - scrape it first
+                    logger.info(f"Scraping product page for {item.title}: {item.link}")
+                    scraper = ProductScraper(item.link)
+                    scraped_data, error = scraper.scrape()
+
+                    if scraped_data and scraped_data.get('image_url'):
+                        # Update with the actual image URL
+                        item.image_url = scraped_data['image_url']
+                        logger.info(f"Found image URL: {item.image_url[:100]}")
+                    else:
+                        logger.error(f"Scraping failed for {item.title}: {error}")
+                        results['errors'] += 1
+                        results['items'].append({
+                            'title': item.title,
+                            'status': 'error',
+                            'error': f'Scraping failed: {error}',
+                            'image_url': initial_image_url
+                        })
+                        continue
+
                 # Re-save to trigger auto-download
                 item.save()
 
@@ -662,7 +687,8 @@ def trigger_image_migration(request):
                         'title': item.title,
                         'status': 'success',
                         'image': item.image.name,
-                        'image_url': initial_image_url
+                        'image_url': initial_image_url,
+                        'scraped': not is_direct_image
                     })
                 else:
                     results['errors'] += 1
