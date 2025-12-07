@@ -6,8 +6,8 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('id', 'username', 'email', 'profile_picture', 'bio', 'full_name')
-        read_only_fields = ('id',)
+        fields = ('id', 'username', 'email', 'profile_picture', 'bio', 'full_name', 'is_superuser')
+        read_only_fields = ('id', 'is_superuser')
 
     def get_full_name(self, obj):
         if obj.first_name and obj.last_name:

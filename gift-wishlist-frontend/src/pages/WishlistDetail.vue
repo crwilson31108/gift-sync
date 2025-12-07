@@ -856,8 +856,8 @@ const wishlist = ref<WishList | null>(null)
 const loading = ref(false)
 const error = ref('')
 
-const isOwner = computed(() => 
-  wishlist.value?.owner.id === currentUser.value?.id
+const isOwner = computed(() =>
+  wishlist.value?.owner.id === currentUser.value?.id || currentUser.value?.is_superuser
 )
 
 // Item dialog state

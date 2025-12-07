@@ -5,6 +5,7 @@ export interface User {
   profile_picture: string | null
   bio: string
   full_name: string
+  is_superuser: boolean
 }
 
 export interface Notification {
