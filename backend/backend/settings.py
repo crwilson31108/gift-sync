@@ -168,17 +168,8 @@ else:
 # Ensure the media directory exists
 os.makedirs(MEDIA_ROOT, exist_ok=True)
 
-# Configure WhiteNoise to serve media files in production
-if os.getenv('RAILWAY_ENVIRONMENT'):
-    # In production, add media directory to staticfiles for WhiteNoise to serve
-    STATICFILES_DIRS = [
-        ('media', MEDIA_ROOT),
-    ]
-    # Tell WhiteNoise to serve files from the root path (for /media/ URLs)
-    WHITENOISE_ROOT = MEDIA_ROOT
-else:
-    # Local development
-    STATICFILES_DIRS = []
+# Configure staticfiles
+STATICFILES_DIRS = []
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field

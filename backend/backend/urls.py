@@ -45,9 +45,13 @@ urlpatterns = [
     path('api/debug-media/', debug_media_files, name='debug-media'),
 ]
 
-# Add this to serve media files in both development and production
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
-else:
-    # Serve media files in production
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+# Serve media files in all environments
+# Use Django's serve view to handle media files from the persistent volume
+from django.views.static import serve as serve_static
+from django.urls import re_path
+
+urlpatterns += [
+    re_path(r'^media/(?P<path>.*)$', serve_static, {
+        'document_root': settings.MEDIA_ROOT,
+    }),
+]
