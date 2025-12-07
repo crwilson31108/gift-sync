@@ -1125,8 +1125,8 @@ function openEditItemDialog(item: WishListItem) {
     image: '',
   }
 
-  // Set image preview if exists
-  selectedImagePreview.value = item.image_url || null
+  // Set image preview if exists (prefer local image over image_url)
+  selectedImagePreview.value = item.image || item.image_url || null
   
   // Enable form fields for editing
   hasScrapedData.value = true

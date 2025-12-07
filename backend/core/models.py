@@ -1,5 +1,9 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from .utils.image_downloader import download_image_from_url, ImageDownloadException
+import logging
+
+logger = logging.getLogger(__name__)
 
 class User(AbstractUser):
     email = models.EmailField(unique=True)
@@ -56,13 +60,28 @@ class WishListItem(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def save(self, *args, **kwargs):
+        # Download image from URL if image_url is provided and no image file exists
+        if self.image_url and not self.image:
+            try:
+                logger.info(f"Downloading image from URL: {self.image_url}")
+                result = download_image_from_url(self.image_url)
+                if result:
+                    content_file, filename = result
+                    self.image.save(filename, content_file, save=False)
+                    # Clear image_url after successful download
+                    self.image_url = ''
+                    logger.info(f"Successfully saved image as: {filename}")
+            except ImageDownloadException as e:
+                logger.error(f"Failed to download image from {self.image_url}: {str(e)}")
+                # Keep the image_url if download fails, but continue saving the model
+            except Exception as e:
+                logger.error(f"Unexpected error downloading image: {str(e)}")
+                # Keep the image_url if download fails, but continue saving the model
+
         # Clear image_url if uploading a new image file
-        if self.image and self.image_url:
+        elif self.image and self.image_url:
             self.image_url = ''
-        # Clear image if setting a new image_url
-        elif self.image_url and self.image:
-            self.image = None
-            
+
         # Size logic...
         if self.price is not None:
             if self.price <= 25:
