@@ -1338,6 +1338,9 @@ async function scrapeUrl() {
     // Enable manual entry
     hasScrapedData.value = false
 
+    // Switch to manual entry tab
+    activeTab.value = 'manual'
+
     // Show friendly message instead of error
     toast.info(
       "We couldn't automatically extract the product info. This often happens with Amazon and other sites that block automated requests. Please fill in the details manually!",
