@@ -621,10 +621,10 @@ def test_email(request):
 def trigger_image_migration(request):
     """
     Temporary endpoint to trigger image migration on Railway.
+    Downloads images for items that have image_url but no local image.
     SECURITY: Remove this endpoint after running the migration!
     """
-    from django.core.management import call_command
-    from io import StringIO
+    from core.utils.image_downloader import download_image_from_url, ImageDownloadException
 
     # Only allow in production (Railway)
     if not os.getenv('RAILWAY_ENVIRONMENT'):
@@ -634,16 +634,46 @@ def trigger_image_migration(request):
         }, status=403)
 
     try:
-        out = StringIO()
-        err = StringIO()
+        # Get items with image_url but no local image
+        items = WishListItem.objects.exclude(image_url='').filter(image='')
 
-        # Run the migration command
-        call_command('download_wishlist_images', '--rescrape', stdout=out, stderr=err)
+        results = {
+            'total': items.count(),
+            'success': 0,
+            'errors': 0,
+            'items': []
+        }
+
+        for item in items:
+            try:
+                # Re-save to trigger auto-download
+                item.save()
+
+                if item.image:
+                    results['success'] += 1
+                    results['items'].append({
+                        'title': item.title,
+                        'status': 'success',
+                        'image': item.image.name
+                    })
+                else:
+                    results['errors'] += 1
+                    results['items'].append({
+                        'title': item.title,
+                        'status': 'failed',
+                        'error': 'Image not downloaded'
+                    })
+            except Exception as e:
+                results['errors'] += 1
+                results['items'].append({
+                    'title': item.title,
+                    'status': 'error',
+                    'error': str(e)
+                })
 
         return Response({
             'status': 'success',
-            'output': out.getvalue(),
-            'errors': err.getvalue() if err.getvalue() else None
+            'results': results
         })
     except Exception as e:
         return Response({
