@@ -718,3 +718,38 @@ def trigger_image_migration(request):
             'status': 'error',
             'message': str(e)
         }, status=500)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def debug_media_files(request):
+    """Debug endpoint to check media files on Railway"""
+    import os
+    from pathlib import Path
+
+    if not os.getenv('RAILWAY_ENVIRONMENT'):
+        return Response({
+            'status': 'error',
+            'message': 'This endpoint only works on Railway'
+        }, status=403)
+
+    media_root = settings.MEDIA_ROOT
+    wishlist_items_dir = os.path.join(media_root, 'wishlist_items')
+
+    info = {
+        'media_root': media_root,
+        'media_root_exists': os.path.exists(media_root),
+        'wishlist_items_dir': wishlist_items_dir,
+        'wishlist_items_dir_exists': os.path.exists(wishlist_items_dir),
+        'files': []
+    }
+
+    if os.path.exists(wishlist_items_dir):
+        try:
+            files = os.listdir(wishlist_items_dir)
+            info['files'] = files
+            info['file_count'] = len(files)
+        except Exception as e:
+            info['error'] = str(e)
+
+    return Response(info)
