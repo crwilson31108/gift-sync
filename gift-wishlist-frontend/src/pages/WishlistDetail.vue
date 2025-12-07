@@ -846,10 +846,12 @@ import { wishlistsService, type WishList, type WishListItem } from '@/services/w
 import { useAppStore } from '@/stores/useAppStore'
 import { format } from 'date-fns'
 import draggable from 'vuedraggable'
+import { useToast } from 'vue-toastification'
 
 const route = useRoute()
 const router = useRouter()
 const store = useAppStore()
+const toast = useToast()
 const currentUser = computed(() => store.currentUser)
 
 const wishlist = ref<WishList | null>(null)
@@ -1319,10 +1321,21 @@ async function scrapeUrl() {
       selectScrapedImage(response.image_url)
     }
   } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : 'Failed to scrape URL'
-    error.value = errorMessage
-    console.error(err)
+    console.error('Scraping error:', err)
     hasScrapedData.value = false
+
+    // Show friendly message instead of error
+    toast.info(
+      "We couldn't automatically extract the product info. This often happens with Amazon and other sites that block automated requests. Please fill in the details manually!",
+      {
+        timeout: 8000,
+        closeOnClick: true,
+        pauseOnFocusLoss: true,
+        pauseOnHover: true,
+        draggable: true,
+        icon: '🤖',
+      }
+    )
   } finally {
     scraping.value = false
   }
