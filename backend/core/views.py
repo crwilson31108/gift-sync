@@ -298,19 +298,10 @@ class WishListItemViewSet(viewsets.ModelViewSet):
                 }, status=status.HTTP_400_BAD_REQUEST)
 
             scraper = ProductScraper(url)
-            data, error = scraper.scrape()
-
-            # Check if scraping failed
-            if error or not data:
-                logger.error(f"Scraping error for URL {url}: {error}")
-                return Response({
-                    'error': 'Could not extract product information from URL',
-                    'details': error,
-                    'url': url
-                }, status=status.HTTP_400_BAD_REQUEST)
+            data = scraper.scrape()
 
             # Check if we got any useful data
-            if not any([data.get('title'), data.get('price')]):
+            if not data or not any([data.get('title'), data.get('price')]):
                 logger.warning(f"Scraping returned empty data for URL {url}: {data}")
                 return Response({
                     'error': 'Could not extract product information from URL',
