@@ -646,29 +646,41 @@ def trigger_image_migration(request):
 
         for item in items:
             try:
+                # Log initial state
+                initial_image_url = item.image_url
+                initial_has_image = bool(item.image)
+
                 # Re-save to trigger auto-download
                 item.save()
+
+                # Refresh from database
+                item.refresh_from_db()
 
                 if item.image:
                     results['success'] += 1
                     results['items'].append({
                         'title': item.title,
                         'status': 'success',
-                        'image': item.image.name
+                        'image': item.image.name,
+                        'image_url': initial_image_url
                     })
                 else:
                     results['errors'] += 1
                     results['items'].append({
                         'title': item.title,
                         'status': 'failed',
-                        'error': 'Image not downloaded'
+                        'error': 'Image not downloaded',
+                        'image_url': initial_image_url,
+                        'initial_had_image': initial_has_image
                     })
             except Exception as e:
                 results['errors'] += 1
+                logger.exception(f"Error downloading image for {item.title}")
                 results['items'].append({
                     'title': item.title,
                     'status': 'error',
-                    'error': str(e)
+                    'error': str(e),
+                    'image_url': item.image_url if hasattr(item, 'image_url') else None
                 })
 
         return Response({
