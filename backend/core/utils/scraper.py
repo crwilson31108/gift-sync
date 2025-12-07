@@ -8,15 +8,9 @@ import logging
 from time import sleep
 from decimal import Decimal
 from dataclasses import dataclass
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from webdriver_manager.chrome import ChromeDriverManager
+from playwright.sync_api import sync_playwright, Browser, Page
 from contextlib import contextmanager
 from fake_useragent import UserAgent
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.by import By
 import cloudscraper
 from urllib3.util.retry import Retry
 from requests.adapters import HTTPAdapter
@@ -60,23 +54,6 @@ class ManualProductData:
             'all_images': self.all_images or []
         }
 
-@contextmanager
-def get_driver():
-    """Context manager for creating and cleaning up Selenium driver"""
-    options = Options()
-    options.add_argument('--headless')  # Run in headless mode
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
-    
-    driver = webdriver.Chrome(
-        service=Service(ChromeDriverManager().install()),
-        options=options
-    )
-    try:
-        yield driver
-    finally:
-        driver.quit()
-
 class ProductScraper:
     def __init__(self, url: str, manual_data: Optional[ManualProductData] = None):
         self.url = url
@@ -119,21 +96,6 @@ class ProductScraper:
             delay=3
         )
 
-        # Update Chrome options for production
-        self.chrome_options = Options()
-        self.chrome_options.add_argument('--headless=new')
-        self.chrome_options.add_argument('--no-sandbox')
-        self.chrome_options.add_argument('--disable-dev-shm-usage')
-        self.chrome_options.add_argument('--disable-gpu')
-        self.chrome_options.binary_location = os.getenv('CHROME_BIN', '/usr/bin/chromium')
-        
-        # Add production-specific options
-        if not settings.DEBUG:
-            self.chrome_options.add_argument('--disable-software-rasterizer')
-            self.chrome_options.add_argument('--disable-extensions')
-            self.chrome_options.add_argument('--single-process')
-            self.chrome_options.add_argument('--remote-debugging-port=9222')
-
     def _get_session(self):
         """Create a session with enhanced retry strategy"""
         session = requests.Session()
@@ -154,9 +116,9 @@ class ProductScraper:
         methods = [
             self._try_regular_session,
             self._try_cloudscraper,
-            self._try_selenium
+            self._try_playwright
         ]
-        
+
         for method in methods:
             try:
                 data = method()
@@ -165,7 +127,7 @@ class ProductScraper:
             except Exception as e:
                 logger.warning(f"Method {method.__name__} failed: {str(e)}")
                 continue
-        
+
         return {}
 
     def _try_regular_session(self) -> Dict:
@@ -186,63 +148,74 @@ class ProductScraper:
         return {}
 
     @contextmanager
-    def get_driver(self):
-        """Enhanced Selenium driver setup with production configuration"""
+    def get_browser(self):
+        """Context manager for Playwright browser"""
+        playwright = None
+        browser = None
         try:
-            service = Service(
-                executable_path=os.getenv('CHROMEDRIVER_PATH', '/usr/bin/chromedriver')
+            playwright = sync_playwright().start()
+            browser = playwright.chromium.launch(
+                headless=True,
+                args=[
+                    '--no-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-gpu'
+                ]
             )
-            
-            driver = webdriver.Chrome(
-                service=service,
-                options=self.chrome_options
-            )
-            
-            # Set page load timeout
-            driver.set_page_load_timeout(30)
-            
-            yield driver
+            yield browser
         except Exception as e:
-            logger.error(f"Failed to create driver: {str(e)}")
+            logger.error(f"Failed to create browser: {str(e)}")
             raise
         finally:
             try:
-                if 'driver' in locals():
-                    driver.quit()
+                if browser:
+                    browser.close()
+                if playwright:
+                    playwright.stop()
             except Exception as e:
-                logger.error(f"Failed to quit driver: {str(e)}")
+                logger.error(f"Failed to close browser: {str(e)}")
 
-    def _try_selenium(self) -> Dict:
-        """Enhanced Selenium attempt with better error handling"""
+    def _try_playwright(self) -> Dict:
+        """Playwright scraping with better error handling"""
         try:
-            with self.get_driver() as driver:
-                # Log Chrome version and capabilities
-                logger.info(f"Chrome version: {driver.capabilities['browserVersion']}")
-                logger.info(f"Chrome capabilities: {driver.capabilities}")
-                
-                driver.get(self.url)
+            with self.get_browser() as browser:
+                page = browser.new_page()
+
+                # Set user agent
+                page.set_extra_http_headers({
+                    'User-Agent': self.ua.random
+                })
+
                 try:
-                    WebDriverWait(driver, 10).until(
-                        EC.presence_of_element_located((By.TAG_NAME, "body"))
-                    )
-                    page_source = driver.page_source
-                    if not page_source:
+                    # Navigate to the page with timeout
+                    page.goto(self.url, timeout=30000, wait_until='domcontentloaded')
+
+                    # Wait a bit for dynamic content
+                    page.wait_for_timeout(2000)
+
+                    # Get page content
+                    page_content = page.content()
+
+                    if not page_content:
                         raise ScraperException("Empty page source received")
-                    
-                    data = self._parse_content(page_source)
+
+                    data = self._parse_content(page_content)
                     if not any(data.values()):
                         raise ScraperException("No data extracted from page")
-                    
+
                     return data
                 except Exception as e:
-                    logger.error(f"Selenium wait/parse error: {str(e)}")
-                    # Try to get page source even if wait failed
-                    return self._parse_content(driver.page_source)
+                    logger.error(f"Playwright navigation/parse error: {str(e)}")
+                    # Try to get page content even if wait failed
+                    try:
+                        return self._parse_content(page.content())
+                    except:
+                        raise
+                finally:
+                    page.close()
         except Exception as e:
-            logger.error(f"Selenium error: {str(e)}")
-            if 'driver' in locals():
-                logger.error(f"Chrome logs: {driver.get_log('browser')}")
-            raise ScraperException("Selenium scraping failed", 
+            logger.error(f"Playwright error: {str(e)}")
+            raise ScraperException("Playwright scraping failed",
                                  details={'original_error': str(e)})
 
     def scrape(self) -> Tuple[Dict, Optional[Dict]]:
@@ -270,22 +243,22 @@ class ProductScraper:
             # Try cloudscraper
             error_details['methods_tried'].append('cloudscraper')
             try:
-                data = self._scrape_with_cloudscraper()
+                data = self._try_cloudscraper()
                 if data:
                     return data, None
             except Exception as e:
                 error_details['method_errors']['cloudscraper'] = str(e)
                 logger.error(f"Cloudscraper method failed: {str(e)}")
 
-            # Try selenium
-            error_details['methods_tried'].append('selenium')
+            # Try playwright
+            error_details['methods_tried'].append('playwright')
             try:
-                data = self._try_selenium()
+                data = self._try_playwright()
                 if data:
                     return data, None
             except Exception as e:
-                error_details['method_errors']['selenium'] = str(e)
-                logger.error(f"Selenium method failed: {str(e)}")
+                error_details['method_errors']['playwright'] = str(e)
+                logger.error(f"Playwright method failed: {str(e)}")
 
             # If we have manual data, return it
             if self.manual_data:
