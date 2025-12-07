@@ -22,8 +22,7 @@ from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from core.views import (
     UserViewSet, FamilyViewSet, WishListViewSet,
-    WishListItemViewSet, NotificationViewSet, PasswordResetViewSet, test_email,
-    trigger_image_migration, debug_media_files
+    WishListItemViewSet, NotificationViewSet, PasswordResetViewSet, test_email
 )
 
 router = DefaultRouter()
@@ -40,9 +39,6 @@ urlpatterns = [
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/test-email/', test_email, name='test-email'),
-    # TEMPORARY - Remove after running migration once
-    path('api/migrate-images/', trigger_image_migration, name='migrate-images'),
-    path('api/debug-media/', debug_media_files, name='debug-media'),
 ]
 
 # Serve media files in all environments
