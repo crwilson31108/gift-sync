@@ -1322,6 +1322,20 @@ async function scrapeUrl() {
     }
   } catch (err) {
     console.error('Scraping error:', err)
+
+    // Keep the URL but clear other fields for manual entry
+    const savedUrl = itemForm.value.link
+    itemForm.value = {
+      ...itemForm.value,
+      link: savedUrl,  // Keep the URL
+      title: '',
+      description: '',
+      price: '',
+      image_url: '',
+      size: 'Medium'
+    }
+
+    // Enable manual entry
     hasScrapedData.value = false
 
     // Show friendly message instead of error
