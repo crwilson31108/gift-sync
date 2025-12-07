@@ -168,12 +168,16 @@ else:
 # Ensure the media directory exists
 os.makedirs(MEDIA_ROOT, exist_ok=True)
 
-# Add media to whitenoise if you want to serve through it
-if not os.getenv('RAILWAY_ENVIRONMENT'):
+# Configure WhiteNoise to serve media files in production
+if os.getenv('RAILWAY_ENVIRONMENT'):
+    # In production, add media directory to staticfiles for WhiteNoise to serve
     STATICFILES_DIRS = [
-        os.path.join(BASE_DIR, 'media'),
+        ('media', MEDIA_ROOT),
     ]
+    # Tell WhiteNoise to serve files from the root path (for /media/ URLs)
+    WHITENOISE_ROOT = MEDIA_ROOT
 else:
+    # Local development
     STATICFILES_DIRS = []
 
 # Default primary key field type
