@@ -132,17 +132,23 @@ class ProductScraper:
 
     def _try_regular_session(self) -> Dict:
         """Try with regular requests session"""
+        logger.info(f"Attempting regular requests for {self.url}")
         session = self._get_session()
         session.headers.update(self.headers)
-        
+
         response = session.get(self.url, timeout=15)
+        logger.info(f"Regular requests status code: {response.status_code}, content length: {len(response.text)}")
+
         if response.status_code == 200:
             return self._parse_content(response.text)
         return {}
 
     def _try_cloudscraper(self) -> Dict:
         """Try with cloudscraper"""
+        logger.info(f"Attempting cloudscraper for {self.url}")
         response = self.scraper.get(self.url)
+        logger.info(f"Cloudscraper status code: {response.status_code}, content length: {len(response.text)}")
+
         if response.status_code == 200:
             return self._parse_content(response.text)
         return {}
@@ -177,41 +183,51 @@ class ProductScraper:
 
     def _try_playwright(self) -> Dict:
         """Playwright scraping with better error handling"""
+        logger.info(f"Attempting Playwright for {self.url}")
         try:
             with self.get_browser() as browser:
                 page = browser.new_page()
 
                 # Set user agent and extra headers
+                user_agent = self.ua.random
+                logger.info(f"Playwright using User-Agent: {user_agent}")
                 page.set_extra_http_headers({
-                    'User-Agent': self.ua.random,
+                    'User-Agent': user_agent,
                     'Accept-Language': 'en-US,en;q=0.9',
                 })
 
                 try:
                     # Navigate to the page with timeout
+                    logger.info(f"Navigating to {self.url}")
                     page.goto(self.url, timeout=45000, wait_until='domcontentloaded')
+                    logger.info(f"Page loaded, URL: {page.url}")
 
                     # For Amazon, wait for specific elements to load
                     if 'amazon' in self.domain:
                         try:
                             # Wait for product title or price to appear
+                            logger.info("Waiting for Amazon product elements...")
                             page.wait_for_selector('#productTitle, .a-price-whole', timeout=10000)
-                        except:
-                            logger.warning("Amazon selectors not found, continuing anyway")
+                            logger.info("Amazon product elements found")
+                        except Exception as wait_err:
+                            logger.warning(f"Amazon selectors not found ({wait_err}), continuing anyway")
 
                     # Wait longer for dynamic content to load
                     page.wait_for_timeout(3000)
 
                     # Get page content
                     page_content = page.content()
+                    logger.info(f"Retrieved page content, length: {len(page_content)}")
 
                     if not page_content:
                         raise ScraperException("Empty page source received")
 
                     data = self._parse_content(page_content)
                     if not any(data.values()):
+                        logger.warning("Playwright extracted no data from page")
                         raise ScraperException("No data extracted from page")
 
+                    logger.info("Playwright successfully extracted data")
                     return data
                 except Exception as e:
                     logger.error(f"Playwright navigation/parse error: {str(e)}")
@@ -219,6 +235,7 @@ class ProductScraper:
                     try:
                         content = page.content()
                         if content:
+                            logger.info("Attempting to parse partial content from failed navigation")
                             return self._parse_content(content)
                     except:
                         pass
@@ -235,19 +252,25 @@ class ProductScraper:
         Scrape the URL and return both the data and any error information
         Returns: (data_dict, error_dict)
         """
+        logger.info(f"Starting scrape for URL: {self.url} (domain: {self.domain})")
+
         error_details = {
             'url': self.url,
             'methods_tried': [],
             'method_errors': {}
         }
-        
+
         try:
             # Try regular requests first
             error_details['methods_tried'].append('requests')
             try:
+                logger.info("Trying requests method...")
                 data = self._scrape_with_requests()
-                if data:
+                if data and any(data.values()):
+                    logger.info("Requests method succeeded!")
                     return data, None
+                else:
+                    logger.info("Requests method returned empty data")
             except Exception as e:
                 error_details['method_errors']['requests'] = str(e)
                 logger.error(f"Requests method failed: {str(e)}")
@@ -255,9 +278,13 @@ class ProductScraper:
             # Try cloudscraper
             error_details['methods_tried'].append('cloudscraper')
             try:
+                logger.info("Trying cloudscraper method...")
                 data = self._try_cloudscraper()
-                if data:
+                if data and any(data.values()):
+                    logger.info("Cloudscraper method succeeded!")
                     return data, None
+                else:
+                    logger.info("Cloudscraper method returned empty data")
             except Exception as e:
                 error_details['method_errors']['cloudscraper'] = str(e)
                 logger.error(f"Cloudscraper method failed: {str(e)}")
@@ -265,18 +292,24 @@ class ProductScraper:
             # Try playwright
             error_details['methods_tried'].append('playwright')
             try:
+                logger.info("Trying playwright method...")
                 data = self._try_playwright()
-                if data:
+                if data and any(data.values()):
+                    logger.info("Playwright method succeeded!")
                     return data, None
+                else:
+                    logger.info("Playwright method returned empty data")
             except Exception as e:
                 error_details['method_errors']['playwright'] = str(e)
                 logger.error(f"Playwright method failed: {str(e)}")
 
             # If we have manual data, return it
             if self.manual_data:
+                logger.info("Using manual data as fallback")
                 return self.manual_data.to_dict(), None
 
             # If all methods failed, raise exception with details
+            logger.error(f"All scraping methods failed for {self.url}")
             raise ScraperException(
                 "All scraping methods failed",
                 details=error_details
@@ -286,8 +319,8 @@ class ProductScraper:
                 'error': str(e),
                 'details': error_details if isinstance(e, ScraperException) else None
             }
-            logger.error(f"Scraping failed: {error_dict}")
-            
+            logger.error(f"Scraping failed for {self.url}: {error_dict}")
+
             # Return manual data if available, otherwise return error
             if self.manual_data:
                 return self.manual_data.to_dict(), error_dict
@@ -320,21 +353,34 @@ class ProductScraper:
     def _parse_content(self, html_content: str) -> Dict:
         """Enhanced parsing with site-specific handling"""
         soup = BeautifulSoup(html_content, 'lxml')
-        
+
+        # Log page title and some key indicators
+        page_title = soup.find('title')
+        logger.info(f"Parsing content from {self.domain}, page title: {page_title.text[:100] if page_title else 'None'}")
+
+        # Check for common bot detection indicators
+        if any(indicator in html_content.lower() for indicator in ['captcha', 'robot check', 'automated access']):
+            logger.warning(f"Possible bot detection page detected for {self.url}")
+
         # Site-specific handling
         if 'amazon' in self.domain:
+            logger.info("Using Amazon-specific scraping logic")
             amazon_data = self._get_amazon_data(soup)
+            logger.info(f"Amazon data extracted: title={'Yes' if amazon_data.get('title') else 'No'}, price={'Yes' if amazon_data.get('price') else 'No'}, image={'Yes' if amazon_data.get('image_url') else 'No'}")
             if amazon_data:
                 amazon_data['all_images'] = self._get_all_images(soup)
                 return amazon_data
-        
+
         # Try structured data first
+        logger.info("Trying structured data extraction")
         structured_data = self._get_structured_data(soup)
         if structured_data:
+            logger.info("Structured data found")
             structured_data['all_images'] = self._get_all_images(soup)
             return structured_data
-        
+
         # Fallback to regular scraping
+        logger.info("Using generic scraping fallback")
         scraped_data = {
             'title': self._get_title(soup),
             'price': self._get_price(soup),
@@ -342,7 +388,9 @@ class ProductScraper:
             'description': self._get_description(soup),
             'all_images': self._get_all_images(soup)
         }
-        
+
+        logger.info(f"Generic scraping results: title={'Yes' if scraped_data.get('title') else 'No'}, price={'Yes' if scraped_data.get('price') else 'No'}")
+
         return scraped_data
 
     def _get_structured_data(self, soup: BeautifulSoup) -> Optional[Dict]:
