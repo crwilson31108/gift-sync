@@ -122,7 +122,8 @@ class ProductScraper:
         for method in methods:
             try:
                 data = method()
-                if data and any(data.values()):
+                # Check if we got actual product data (title or price), not just images
+                if data and any([data.get('title'), data.get('price')]):
                     return data
             except Exception as e:
                 logger.warning(f"Method {method.__name__} failed: {str(e)}")
@@ -266,11 +267,12 @@ class ProductScraper:
             try:
                 logger.info("Trying requests method...")
                 data = self._scrape_with_requests()
-                if data and any(data.values()):
+                # Check for actual product data, not just any data
+                if data and any([data.get('title'), data.get('price')]):
                     logger.info("Requests method succeeded!")
                     return data, None
                 else:
-                    logger.info("Requests method returned empty data")
+                    logger.info("Requests method returned no product data")
             except Exception as e:
                 error_details['method_errors']['requests'] = str(e)
                 logger.error(f"Requests method failed: {str(e)}")
@@ -280,11 +282,12 @@ class ProductScraper:
             try:
                 logger.info("Trying cloudscraper method...")
                 data = self._try_cloudscraper()
-                if data and any(data.values()):
+                # Check for actual product data, not just any data
+                if data and any([data.get('title'), data.get('price')]):
                     logger.info("Cloudscraper method succeeded!")
                     return data, None
                 else:
-                    logger.info("Cloudscraper method returned empty data")
+                    logger.info("Cloudscraper method returned no product data")
             except Exception as e:
                 error_details['method_errors']['cloudscraper'] = str(e)
                 logger.error(f"Cloudscraper method failed: {str(e)}")
@@ -294,11 +297,12 @@ class ProductScraper:
             try:
                 logger.info("Trying playwright method...")
                 data = self._try_playwright()
-                if data and any(data.values()):
+                # Check for actual product data, not just any data
+                if data and any([data.get('title'), data.get('price')]):
                     logger.info("Playwright method succeeded!")
                     return data, None
                 else:
-                    logger.info("Playwright method returned empty data")
+                    logger.info("Playwright method returned no product data")
             except Exception as e:
                 error_details['method_errors']['playwright'] = str(e)
                 logger.error(f"Playwright method failed: {str(e)}")
