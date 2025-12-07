@@ -612,4 +612,41 @@ def test_email(request):
         return Response({
             'status': 'error',
             'message': str(e)
-        }, status=500) 
+        }, status=500)
+
+
+# TEMPORARY ENDPOINT - Remove after running migration once
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def trigger_image_migration(request):
+    """
+    Temporary endpoint to trigger image migration on Railway.
+    SECURITY: Remove this endpoint after running the migration!
+    """
+    from django.core.management import call_command
+    from io import StringIO
+
+    # Only allow in production (Railway)
+    if not os.getenv('RAILWAY_ENVIRONMENT'):
+        return Response({
+            'status': 'error',
+            'message': 'This endpoint only works on Railway'
+        }, status=403)
+
+    try:
+        out = StringIO()
+        err = StringIO()
+
+        # Run the migration command
+        call_command('download_wishlist_images', '--rescrape', stdout=out, stderr=err)
+
+        return Response({
+            'status': 'success',
+            'output': out.getvalue(),
+            'errors': err.getvalue() if err.getvalue() else None
+        })
+    except Exception as e:
+        return Response({
+            'status': 'error',
+            'message': str(e)
+        }, status=500)
