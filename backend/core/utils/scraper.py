@@ -187,20 +187,33 @@ class ProductScraper:
         logger.info(f"Attempting Playwright for {self.url}")
         try:
             with self.get_browser() as browser:
-                page = browser.new_page()
+                # Create context with realistic settings
+                context = browser.new_context(
+                    user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+                    viewport={'width': 1920, 'height': 1080},
+                    locale='en-US',
+                    timezone_id='America/New_York',
+                    extra_http_headers={
+                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+                        'Accept-Language': 'en-US,en;q=0.5',
+                        'Accept-Encoding': 'gzip, deflate, br',
+                        'DNT': '1',
+                        'Connection': 'keep-alive',
+                        'Upgrade-Insecure-Requests': '1',
+                        'Sec-Fetch-Dest': 'document',
+                        'Sec-Fetch-Mode': 'navigate',
+                        'Sec-Fetch-Site': 'none',
+                        'Sec-Fetch-User': '?1',
+                    }
+                )
+                page = context.new_page()
 
-                # Set user agent and extra headers
-                user_agent = self.ua.random
-                logger.info(f"Playwright using User-Agent: {user_agent}")
-                page.set_extra_http_headers({
-                    'User-Agent': user_agent,
-                    'Accept-Language': 'en-US,en;q=0.9',
-                })
+                logger.info(f"Playwright using realistic Chrome user agent")
 
                 try:
                     # Navigate to the page with timeout
                     logger.info(f"Navigating to {self.url}")
-                    page.goto(self.url, timeout=45000, wait_until='domcontentloaded')
+                    page.goto(self.url, timeout=45000, wait_until='networkidle')
                     logger.info(f"Page loaded, URL: {page.url}")
 
                     # For Amazon, wait for specific elements to load
@@ -242,7 +255,11 @@ class ProductScraper:
                         pass
                     raise
                 finally:
-                    page.close()
+                    try:
+                        page.close()
+                        context.close()
+                    except:
+                        pass
         except Exception as e:
             logger.error(f"Playwright error: {str(e)}")
             raise ScraperException("Playwright scraping failed",
