@@ -114,14 +114,18 @@ class WishListViewSet(viewsets.ModelViewSet):
         family_id = self.request.query_params.get('family')
         # Filter by owner if provided
         owner_id = self.request.query_params.get('owner')
-        
-        queryset = WishList.objects.filter(family__members=user)
-        
+
+        # Superusers can see and edit all wishlists
+        if user.is_superuser:
+            queryset = WishList.objects.all()
+        else:
+            queryset = WishList.objects.filter(family__members=user)
+
         if family_id:
             queryset = queryset.filter(family_id=family_id)
         if owner_id:
             queryset = queryset.filter(owner_id=owner_id)
-            
+
         return queryset.order_by('-created_at')
 
     def perform_create(self, serializer):
@@ -187,6 +191,10 @@ class WishListItemViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
+        # Superusers can see and edit all items
+        if self.request.user.is_superuser:
+            return WishListItem.objects.all().select_related('purchased_by', 'wishlist__owner')
+
         return WishListItem.objects.filter(
             wishlist__family__members=self.request.user
         ).select_related('purchased_by', 'wishlist__owner')
