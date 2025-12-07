@@ -181,17 +181,26 @@ class ProductScraper:
             with self.get_browser() as browser:
                 page = browser.new_page()
 
-                # Set user agent
+                # Set user agent and extra headers
                 page.set_extra_http_headers({
-                    'User-Agent': self.ua.random
+                    'User-Agent': self.ua.random,
+                    'Accept-Language': 'en-US,en;q=0.9',
                 })
 
                 try:
                     # Navigate to the page with timeout
-                    page.goto(self.url, timeout=30000, wait_until='domcontentloaded')
+                    page.goto(self.url, timeout=45000, wait_until='domcontentloaded')
 
-                    # Wait a bit for dynamic content
-                    page.wait_for_timeout(2000)
+                    # For Amazon, wait for specific elements to load
+                    if 'amazon' in self.domain:
+                        try:
+                            # Wait for product title or price to appear
+                            page.wait_for_selector('#productTitle, .a-price-whole', timeout=10000)
+                        except:
+                            logger.warning("Amazon selectors not found, continuing anyway")
+
+                    # Wait longer for dynamic content to load
+                    page.wait_for_timeout(3000)
 
                     # Get page content
                     page_content = page.content()
@@ -208,9 +217,12 @@ class ProductScraper:
                     logger.error(f"Playwright navigation/parse error: {str(e)}")
                     # Try to get page content even if wait failed
                     try:
-                        return self._parse_content(page.content())
+                        content = page.content()
+                        if content:
+                            return self._parse_content(content)
                     except:
-                        raise
+                        pass
+                    raise
                 finally:
                     page.close()
         except Exception as e:
@@ -534,41 +546,71 @@ class ProductScraper:
     def _get_amazon_data(self, soup: BeautifulSoup) -> Dict:
         """Special handling for Amazon pages"""
         data = {}
-        
-        # Amazon title
-        title_element = soup.find('span', {'id': 'productTitle'})
-        if title_element:
-            data['title'] = title_element.text.strip()
-        
+
+        # Amazon title - try multiple selectors
+        title_selectors = [
+            ('span', {'id': 'productTitle'}),
+            ('h1', {'id': 'title'}),
+            ('span', {'class': 'product-title-word-break'}),
+        ]
+        for tag, attrs in title_selectors:
+            title_element = soup.find(tag, attrs)
+            if title_element and title_element.text.strip():
+                data['title'] = title_element.text.strip()
+                break
+
         # Amazon price - multiple possible locations
         price_elements = [
             soup.find('span', {'class': 'a-price-whole'}),
             soup.find('span', {'id': 'priceblock_ourprice'}),
             soup.find('span', {'id': 'priceblock_dealprice'}),
-            soup.find('span', {'class': 'a-offscreen'})
+            soup.find('span', {'class': 'a-offscreen'}),
+            soup.find('span', {'class': 'a-price'}),
         ]
-        
+
         for element in price_elements:
             if element:
                 price_text = element.text.strip()
                 try:
                     # Extract numbers from price text
-                    price = float(re.sub(r'[^\d.]', '', price_text))
-                    data['price'] = price
-                    break
-                except ValueError:
+                    price_str = re.sub(r'[^\d.]', '', price_text)
+                    if price_str:
+                        price = float(price_str)
+                        if price > 0:  # Ensure valid price
+                            data['price'] = price
+                            break
+                except (ValueError, AttributeError):
                     continue
-        
-        # Amazon images
-        image_element = soup.find('img', {'id': 'landingImage'})
-        if image_element:
-            data['image_url'] = image_element.get('data-old-hires') or image_element.get('src')
-        
-        # Amazon description
-        description_element = soup.find('div', {'id': 'productDescription'})
-        if description_element:
-            data['description'] = description_element.text.strip()
-        
+
+        # Amazon images - try multiple sources
+        image_sources = [
+            ('img', {'id': 'landingImage'}),
+            ('img', {'id': 'imgBlkFront'}),
+            ('img', {'class': 'a-dynamic-image'}),
+        ]
+        for tag, attrs in image_sources:
+            image_element = soup.find(tag, attrs)
+            if image_element:
+                # Try multiple attributes
+                img_url = (image_element.get('data-old-hires') or
+                          image_element.get('data-a-dynamic-image') or
+                          image_element.get('src'))
+                if img_url and not img_url.startswith('data:'):
+                    data['image_url'] = img_url
+                    break
+
+        # Amazon description - try multiple selectors
+        description_selectors = [
+            ('div', {'id': 'productDescription'}),
+            ('div', {'id': 'feature-bullets'}),
+            ('div', {'class': 'a-section feature'}),
+        ]
+        for tag, attrs in description_selectors:
+            description_element = soup.find(tag, attrs)
+            if description_element and description_element.text.strip():
+                data['description'] = description_element.text.strip()
+                break
+
         return data
 
     def _extract_structured_price(self, soup: BeautifulSoup) -> Optional[float]:
