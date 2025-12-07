@@ -156,15 +156,25 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# Use Railway volume in production, local directory in development
+if os.getenv('RAILWAY_ENVIRONMENT'):
+    # Railway production - use persistent volume
+    MEDIA_ROOT = '/app/media'
+else:
+    # Local development
+    MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # Ensure the media directory exists
 os.makedirs(MEDIA_ROOT, exist_ok=True)
 
 # Add media to whitenoise if you want to serve through it
-STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, 'media'),
-]
+if not os.getenv('RAILWAY_ENVIRONMENT'):
+    STATICFILES_DIRS = [
+        os.path.join(BASE_DIR, 'media'),
+    ]
+else:
+    STATICFILES_DIRS = []
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
