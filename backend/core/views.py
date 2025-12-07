@@ -303,19 +303,39 @@ class WishListItemViewSet(viewsets.ModelViewSet):
             # Check if we got any useful data
             if not data or not any([data.get('title'), data.get('price')]):
                 logger.warning(f"Scraping returned empty data for URL {url}: {data}")
+
+                # Provide helpful error message
+                scrape_method = data.get('scrape_method', 'unknown') if data else 'unknown'
+                error_details = data.get('error', 'No title or price found') if data else 'No data returned'
+
                 return Response({
                     'error': 'Could not extract product information from URL',
-                    'details': {'message': 'No title or price found', 'data': data},
-                    'url': url
+                    'details': {
+                        'message': error_details,
+                        'scrape_method': scrape_method,
+                        'suggestion': 'Please enter product details manually using the form below.'
+                    },
+                    'url': url,
+                    # Still return partial data if available
+                    'partial_data': {
+                        'title': data.get('title') if data else None,
+                        'price': data.get('price') if data else None,
+                        'image_url': data.get('image_url') if data else None,
+                        'description': data.get('description') if data else None,
+                    }
                 }, status=status.HTTP_400_BAD_REQUEST)
 
+            # Success - return data with metadata
+            logger.info(f"Successfully scraped {url} using method: {data.get('scrape_method')}")
             return Response(data)
+
         except Exception as e:
             logger.exception(f"Unexpected error while scraping {url}")
             return Response({
-                'error': 'Unexpected error occurred',
+                'error': 'Unexpected error occurred while scraping',
                 'message': str(e),
-                'url': url
+                'url': url,
+                'suggestion': 'Please enter product details manually.'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=['POST'])
