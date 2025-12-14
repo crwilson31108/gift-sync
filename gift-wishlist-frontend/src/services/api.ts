@@ -28,20 +28,25 @@ api.interceptors.response.use((response) => {
 }, (error) => {
   // Handle token expiration
   if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-    // Check if the error is due to token expiration
-    const errorMessage = error.response.data?.detail || ''
-    if (
-      errorMessage.includes('expired') || 
-      errorMessage.includes('invalid') || 
+    const responseData = error.response.data
+    const errorMessage = responseData?.detail || ''
+    const errorCode = responseData?.code
+
+    // Check for JWT token expiration response structure
+    const isTokenExpired =
+      errorCode === 'token_not_valid' ||
+      errorMessage.includes('expired') ||
+      errorMessage.includes('invalid') ||
       errorMessage.includes('not provided') ||
       errorMessage.includes('authentication')
-    ) {
+
+    if (isTokenExpired) {
       console.log('Token expired or invalid, redirecting to login')
-      
+
       // Clear user data
       const appStore = useAppStore()
       appStore.logout()
-      
+
       // Redirect to login
       window.location.href = '/login'
     }
