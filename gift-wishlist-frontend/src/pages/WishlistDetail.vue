@@ -859,7 +859,7 @@ const loading = ref(false)
 const error = ref('')
 
 const isOwner = computed(() =>
-  wishlist.value?.owner.id === currentUser.value?.id || currentUser.value?.is_superuser
+  wishlist.value?.owner.id === currentUser.value?.id
 )
 
 // Item dialog state
@@ -1220,7 +1220,7 @@ async function handleDeleteItem() {
   }
 }
 
-async function handlePurchase(item: WishListItem) {
+async function handlePurchaseItem(item: WishListItem) {
   try {
     loading.value = true
     await wishlistsService.purchaseItem(item.id)

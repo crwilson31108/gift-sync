@@ -115,11 +115,8 @@ class WishListViewSet(viewsets.ModelViewSet):
         # Filter by owner if provided
         owner_id = self.request.query_params.get('owner')
 
-        # Superusers can see and edit all wishlists
-        if user.is_superuser:
-            queryset = WishList.objects.all()
-        else:
-            queryset = WishList.objects.filter(family__members=user)
+        # All users (including superusers) only see wishlists from their families
+        queryset = WishList.objects.filter(family__members=user)
 
         if family_id:
             queryset = queryset.filter(family_id=family_id)
@@ -191,10 +188,7 @@ class WishListItemViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        # Superusers can see and edit all items
-        if self.request.user.is_superuser:
-            return WishListItem.objects.all().select_related('purchased_by', 'wishlist__owner')
-
+        # All users (including superusers) only see items from their families
         return WishListItem.objects.filter(
             wishlist__family__members=self.request.user
         ).select_related('purchased_by', 'wishlist__owner')
