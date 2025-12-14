@@ -1147,7 +1147,20 @@ function confirmDeleteItem(item: WishListItem) {
 async function handleItemSubmit() {
   try {
     loading.value = true
-    
+
+    // Validate that either image or image_url is provided (only for create mode)
+    if (itemDialog.value.mode === 'create') {
+      const hasImage = itemForm.value.image instanceof File
+      const hasImageUrl = Boolean(itemForm.value.image_url?.trim())
+
+      if (!hasImage && !hasImageUrl) {
+        itemErrors.value.image = 'Please provide an image file or image URL'
+        toast.error('Please provide an image file or image URL')
+        loading.value = false
+        return
+      }
+    }
+
     // Create FormData for submission
     const formData = new FormData()
     formData.append('title', itemForm.value.title)
@@ -1156,13 +1169,13 @@ async function handleItemSubmit() {
     formData.append('link', itemForm.value.link || '')
     formData.append('size', itemForm.value.size)
     formData.append('wishlist', itemForm.value.wishlist.toString())
-    
+
     // Preserve priority in edit mode, or use default in create mode
-    const priority = itemDialog.value.mode === 'edit' && itemDialog.value.item 
-      ? itemDialog.value.item.priority 
+    const priority = itemDialog.value.mode === 'edit' && itemDialog.value.item
+      ? itemDialog.value.item.priority
       : itemForm.value.priority
     formData.append('priority', priority.toString())
-    
+
     // Handle image submission
     if (itemForm.value.image instanceof File) {
       formData.append('image', itemForm.value.image)

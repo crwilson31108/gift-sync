@@ -93,6 +93,20 @@ class WishListItemSerializer(serializers.ModelSerializer):
         
         return data
 
+    def validate(self, data):
+        """Ensure either image or image_url is provided on creation"""
+        # Only validate on creation (when instance doesn't exist)
+        if not self.instance:
+            has_image = data.get('image') is not None
+            has_image_url = bool(data.get('image_url', '').strip())
+
+            if not has_image and not has_image_url:
+                raise serializers.ValidationError({
+                    'image': 'Either an image file or image URL must be provided.'
+                })
+
+        return data
+
     def create(self, validated_data):
         # Ensure image_url is saved
         image_url = validated_data.get('image_url', '')
